@@ -1,0 +1,51 @@
+# --- secrets (NEVER commit) ---
+token
+*token*
+.env
+.env.*
+*.key
+*.pem
+huggingface/
+
+# --- large data / model artifacts (kept on the cluster, not in git) ---
+*.npz
+*.npy
+*.h5
+*.hdf5
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.sif
+*.nii
+*.nii.gz
+data/
+acts/
+sae/
+probes/
+
+# --- caches / build ---
+.jax_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+.mypy_cache/
+.ruff_cache/
+
+# --- slurm logs ---
+*.out
+slurm-*.out
+logs/
+
+# --- venv / editor ---
+.venv/
+venv/
+.vscode/
+.idea/
+*.swp
+.DS_Store

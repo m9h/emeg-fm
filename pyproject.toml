@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eeg-fm-spectral"
+version = "0.1.0"
+description = "Spectral diagnostics (WeightWatcher/HTSR) and TopK-SAE interpretability for EEG foundation models"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Morgan G. Hough" }]
+keywords = ["eeg", "foundation-models", "sparse-autoencoder", "weightwatcher", "htsr", "interpretability", "jax"]
+
+# Core library (SAE + adapter machinery). The pure-JAX SAE needs only these.
+dependencies = [
+    "jax>=0.4",
+    "numpy>=1.24",
+    "optax>=0.2",
+]
+
+[project.optional-dependencies]
+# Activation extraction from the foundation models (PyTorch side).
+extract = [
+    "torch>=2.1",
+    "braindecode>=0.8",
+    "mne>=1.6",
+    "eegdash",
+]
+# WeightWatcher HTSR analysis.
+weightwatcher = [
+    "weightwatcher>=0.7",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+]
+# Per-feature concept probes.
+probes = [
+    "scikit-learn>=1.3",
+    "pandas>=2.0",
+]
+test = [
+    "pytest>=7.0",
+]
+
+[tool.setuptools]
+packages = ["eeg_fm_spectral"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
