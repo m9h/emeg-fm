@@ -39,6 +39,7 @@ from typing import Callable, NamedTuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +299,73 @@ def dictionary_health(
         "l0_actual": float(l0),
         "recon_mse": float(recon_mse),
         "explained_var": float(explained_var),
+    }
+
+
+# ---------------------------------------------------------------------------
+# HTSR / RG spectral summary of a weight matrix
+# ---------------------------------------------------------------------------
+
+def weight_spectral_summary(weight, *, tail_frac: float = 0.5) -> dict:
+    """HTSR-style spectral statistics of a 2-D weight matrix.
+
+    The weight-side analogue of the activation participation-ratio audit, used
+    for the Muon-vs-AdamW bakeoff (see ``docs/MUON_EXPERIMENT.md``). Computes
+    the empirical spectral density (ESD) of the correlation matrix ``WᵀW`` from
+    the singular values ``s`` (eigenvalues ``λ = s²``) and reports:
+
+      * ``participation_ratio`` — Martin's ``M_tr = (Σλ)² / Σλ²``. The effective
+        number of eigen-directions carrying the matrix's variance. Higher =
+        spectral mass spread across many components (self-averaging); low =
+        a few directions dominate (the non-self-averaging / α<2 regime).
+      * ``alpha_hill`` — a Hill-estimator proxy for WeightWatcher's power-law
+        exponent α of the ESD tail ``ρ(λ) ∝ λ^{-α}``, fit over the top
+        ``tail_frac`` of eigenvalues. This is a lightweight, fixed-cutoff
+        proxy — NOT WeightWatcher's KS-optimised ``powerlaw.Fit``. Use it for
+        relative A/B comparisons (Muon vs AdamW on identical architecture),
+        not as an absolute α report. α near 2 is Martin's RG ideal.
+      * ``stable_rank`` — ``Σλ / λ_max`` (= ‖W‖_F² / ‖W‖_2²).
+      * ``lambda_max``, ``n_eigs``.
+
+    Pure numpy (host-side SVD): these matrices are small (≤ d_dict × d_model)
+    and this runs once at end-of-training, so JIT isn't worth it.
+    """
+    W = np.asarray(weight, dtype=np.float64)
+    if W.ndim != 2:
+        raise ValueError(f"weight_spectral_summary needs a 2-D matrix, got {W.shape}")
+
+    s = np.linalg.svd(W, compute_uv=False)
+    lam = np.sort((s ** 2)[s > 0])[::-1]          # eigenvalues, descending
+    n = int(lam.size)
+    if n == 0:
+        return {"participation_ratio": 0.0, "alpha_hill": float("nan"),
+                "stable_rank": 0.0, "lambda_max": 0.0, "n_eigs": 0,
+                "tail_frac": float(tail_frac)}
+
+    sum_lam = float(lam.sum())
+    sum_lam2 = float((lam ** 2).sum())
+    participation_ratio = (sum_lam ** 2) / (sum_lam2 + 1e-30)
+    lam_max = float(lam[0])
+    stable_rank = sum_lam / (lam_max + 1e-30)
+
+    # Hill tail-index on the upper ``tail_frac`` eigenvalues. ξ = n/Σln(λ/λ_min)
+    # estimates the CCDF exponent; the ESD *density* exponent is α = ξ + 1,
+    # which matches WeightWatcher's α convention.
+    n_tail = max(2, int(round(tail_frac * n)))
+    n_tail = min(n_tail, n)
+    tail = lam[:n_tail]
+    lam_min = float(tail[-1])
+    ratios = np.log(tail / (lam_min + 1e-30))
+    denom = float(ratios.sum())
+    alpha_hill = (1.0 + n_tail / denom) if denom > 0 else float("nan")
+
+    return {
+        "participation_ratio": float(participation_ratio),
+        "alpha_hill": float(alpha_hill),
+        "stable_rank": float(stable_rank),
+        "lambda_max": lam_max,
+        "n_eigs": n,
+        "tail_frac": float(tail_frac),
     }
 
 

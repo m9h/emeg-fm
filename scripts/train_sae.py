@@ -46,6 +46,7 @@ def train(args):
         make_topk_sae, make_sae_train_step, init_sae_optimizer,
         recon_loss, dictionary_health, TopKSAEParams,
         make_sae_train_step_aux_k, init_sae_train_state,
+        weight_spectral_summary,
     )
 
     print(f"[jax] devices: {jax.devices()}", flush=True)
@@ -99,7 +100,22 @@ def train(args):
         d_model=d_model, d_dict=args.d_dict, k=args.k, key=key,
     )
 
-    optimizer = optax.adam(args.lr)
+    # Optimizer: AdamW baseline vs Muon (Scope A of the Muon experiment —
+    # docs/MUON_EXPERIMENT.md). optax.contrib.muon orthogonalises the gradient
+    # of 2-D matmul weights (enc_weight, dec_weight) via Newton-Schulz and
+    # routes 1-D params (the biases) to its internal AdamW. The RG prediction:
+    # Muon spreads the dictionary's spectral mass → higher participation ratio,
+    # α nearer 2, and a higher live-feature yield at matched reconstruction.
+    if args.optimizer == "muon":
+        adam_lr = args.adam_lr if args.adam_lr is not None else args.lr
+        optimizer = optax.contrib.muon(
+            learning_rate=args.lr,
+            adam_learning_rate=adam_lr,
+        )
+        print(f"[opt] muon (matrix lr={args.lr}, adam lr={adam_lr})", flush=True)
+    else:
+        optimizer = optax.adam(args.lr)
+        print(f"[opt] adam (lr={args.lr})", flush=True)
     opt_state = init_sae_optimizer(params, optimizer)
 
     use_aux = args.aux_k > 0
@@ -152,6 +168,17 @@ def train(args):
     print(f"[done] {time.time() - t0:.1f}s  final EV={final_health['explained_var']:.3f}",
           flush=True)
 
+    # HTSR/RG spectral summary of the learned dictionary (Muon-vs-AdamW
+    # readout). dec_weight is the dictionary atoms; enc_weight its transpose-ish
+    # encoder. Report both so the bakeoff can compare α / participation ratio.
+    spectral = {
+        "dec_weight": weight_spectral_summary(params.dec_weight),
+        "enc_weight": weight_spectral_summary(params.enc_weight),
+    }
+    print(f"[spectral] dec: PR={spectral['dec_weight']['participation_ratio']:.1f}  "
+          f"alpha_hill={spectral['dec_weight']['alpha_hill']:.2f}  "
+          f"stable_rank={spectral['dec_weight']['stable_rank']:.1f}", flush=True)
+
     # ---- save ------------------------------------------------------------
     out_prefix = Path(args.out_prefix)
     out_prefix.parent.mkdir(parents=True, exist_ok=True)
@@ -175,8 +202,11 @@ def train(args):
                 "lr": args.lr, "batch_size": args.batch_size,
                 "epochs": args.epochs, "n_train": int(n_train),
                 "n_holdout": int(n_holdout),
+                "optimizer": args.optimizer,
+                "adam_lr": args.adam_lr,
             },
             "final_health": final_health,
+            "spectral": spectral,
             "history": history,
         }, f, indent=2)
 
@@ -203,7 +233,16 @@ def main():
                     help="Dictionary size (default 16 * d_model, read from .npz)")
     ap.add_argument("--k", type=int, default=32,
                     help="TopK sparsity")
-    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--lr", type=float, default=1e-3,
+                    help="Learning rate. For --optimizer muon this is the "
+                         "Newton-Schulz matrix-update LR (needs its own tuning; "
+                         "do not reuse the adam-optimal value).")
+    ap.add_argument("--optimizer", choices=("adam", "muon"), default="adam",
+                    help="adam = baseline; muon = orthogonalised matrix updates "
+                         "(Scope A of docs/MUON_EXPERIMENT.md).")
+    ap.add_argument("--adam-lr", type=float, default=None,
+                    help="LR for the AdamW fallback Muon applies to 1-D params "
+                         "(biases). Default: same as --lr. Ignored for adam.")
     ap.add_argument("--batch-size", type=int, default=4096)
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--eval-every", type=int, default=2,

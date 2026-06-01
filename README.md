@@ -63,7 +63,8 @@ eeg_fm_spectral/
 scripts/
   extract_eeg_fm_acts.py        eegdash/HBN -> windows @ 200 Hz -> block activations -> .npz
   extract_eeg_fm_acts_local_bids.py   per-subject streaming variant (large releases)
-  train_sae.py                  fit a TopK SAE to extracted activations
+  train_sae.py                  fit a TopK SAE (--optimizer adam|muon) to extracted activations
+  muon_sae_bakeoff.sbatch       Muon-vs-AdamW SAE A/B (docs/MUON_EXPERIMENT.md)
   sae_concept_probes.py         per-feature linear/logistic probes -> HBN clinical concepts
   analyze_eegfm_weightwatcher.py, analyze_reve_weightwatcher.py   WeightWatcher HTSR analysis
   download_hbn_s3_direct.py, predownload_hbn_all.py               HBN data staging
@@ -114,7 +115,9 @@ the cluster and are git-ignored — this repo is code + derived results only.
 
 ## References
 
-- C. H. Martin, *Renormalization Group Theory of Learning* (2026).
+- C. H. Martin, *Renormalization Group Theory of Learning* (2026). The
+  Muon-vs-AdamW prediction this motivates is laid out as a concrete experiment
+  in [docs/MUON_EXPERIMENT.md](docs/MUON_EXPERIMENT.md).
 - C. H. Martin & M. W. Mahoney, *Implicit Self-Regularization in Deep Neural
   Networks* (JMLR 2021); *Predicting trends in the quality of state-of-the-art
   neural networks without access to training or test data* (Nature Comms 2021).

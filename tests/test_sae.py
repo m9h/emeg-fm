@@ -29,6 +29,7 @@ from eeg_fm_spectral.sae import (
     SAETrainState,
     init_sae_train_state,
     make_sae_train_step_aux_k,
+    weight_spectral_summary,
 )
 
 
@@ -403,3 +404,44 @@ class TestJitAndGrad:
         recon, z = vmapped(params, x)
         assert recon.shape == (3, 5, 32)
         assert z.shape == (3, 5, 128)
+
+
+# ===========================================================================
+# weight_spectral_summary — HTSR/RG spectral readout (Muon bakeoff metric)
+# ===========================================================================
+
+class TestWeightSpectralSummary:
+
+    def test_keys_and_ranges(self):
+        rng = np.random.default_rng(0)
+        W = rng.standard_normal((64, 256))
+        s = weight_spectral_summary(W)
+        for k in ("participation_ratio", "alpha_hill", "stable_rank",
+                  "lambda_max", "n_eigs", "tail_frac"):
+            assert k in s
+        # min(m,n) nonzero eigenvalues for a full-rank Gaussian matrix.
+        assert s["n_eigs"] == 64
+        assert s["participation_ratio"] > 1.0
+        assert s["stable_rank"] > 1.0
+        assert s["lambda_max"] > 0.0
+
+    def test_rejects_non_2d(self):
+        with pytest.raises(ValueError, match="2-D"):
+            weight_spectral_summary(np.zeros((4, 4, 4)))
+
+    def test_rank1_has_low_participation(self):
+        # An (almost) rank-1 matrix: one direction dominates → participation
+        # ratio near 1, stable rank near 1. The non-self-averaging regime.
+        u = np.arange(1.0, 33.0)[:, None]
+        v = np.arange(1.0, 17.0)[None, :]
+        W = u @ v + 1e-6 * np.random.default_rng(1).standard_normal((32, 16))
+        s = weight_spectral_summary(W)
+        assert s["participation_ratio"] < 1.5
+        assert s["stable_rank"] < 1.5
+
+    def test_isotropic_has_high_participation(self):
+        # An orthonormal (isotropic) matrix has a flat spectrum → participation
+        # ratio equals the rank. Contrast with the rank-1 case above.
+        q, _ = np.linalg.qr(np.random.default_rng(2).standard_normal((128, 128)))
+        s = weight_spectral_summary(q)
+        assert s["participation_ratio"] > 100.0   # ~128 for a flat spectrum
