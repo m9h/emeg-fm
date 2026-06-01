@@ -243,6 +243,95 @@ class REVEAdapter(HFModelAdapter):
 LABRAM_DEFAULT_ID = "labram-base"  # virtual ID — braindecode-hosted
 LABRAM_DEFAULT_HOOK_PATH = "blocks"
 
+# braindecode/labram-pretrained was pretrained at 200 Hz on 15 s windows
+# (n_times=3000) over a 128-name 10-20 channel vocabulary. The positional
+# embedding is sized for exactly 1921 patch tokens (128 chans × 15 patches + 1
+# cls), so the forward pass *only* accepts n_times=3000 — shorter windows raise
+# a tensor-size mismatch. These are the model defaults, not tunables.
+LABRAM_N_CHANS = 128
+LABRAM_N_TIMES = 3000
+
+# LaBraM's channel-name vocabulary (model.chs_info order). forward() uppercases
+# each name and looks it up here; labels outside this set must be pre-mapped.
+LABRAM_VOCAB = (
+    'FP1', 'FPZ', 'FP2', 'AF9', 'AF7', 'AF5', 'AF3', 'AF1', 'AFZ', 'AF2', 'AF4',
+    'AF6', 'AF8', 'AF10', 'F9', 'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6',
+    'F8', 'F10', 'FT9', 'FT7', 'FC5', 'FC3', 'FC1', 'FCZ', 'FC2', 'FC4', 'FC6',
+    'FT8', 'FT10', 'T9', 'T7', 'C5', 'C3', 'C1', 'CZ', 'C2', 'C4', 'C6', 'T8',
+    'T10', 'TP9', 'TP7', 'CP5', 'CP3', 'CP1', 'CPZ', 'CP2', 'CP4', 'CP6', 'TP8',
+    'TP10', 'P9', 'P7', 'P5', 'P3', 'P1', 'PZ', 'P2', 'P4', 'P6', 'P8', 'P10',
+    'PO9', 'PO7', 'PO5', 'PO3', 'PO1', 'POZ', 'PO2', 'PO4', 'PO6', 'PO8',
+    'PO10', 'O1', 'OZ', 'O2', 'O9', 'CB1', 'CB2', 'IZ', 'O10', 'T3', 'T5', 'T4',
+    'T6', 'M1', 'M2', 'A1', 'A2', 'CFC1', 'CFC2', 'CFC3', 'CFC4', 'CFC5',
+    'CFC6', 'CFC7', 'CFC8', 'CCP1', 'CCP2', 'CCP3', 'CCP4', 'CCP5', 'CCP6',
+    'CCP7', 'CCP8', 'T1', 'T2', 'FTT9h', 'TTP7h', 'TPP9h', 'FTT10h', 'TPP8h',
+    'TPP10h', 'FP1-F7', 'F7-T7', 'T7-P7', 'P7-O1', 'FP2-F8', 'F8-T8', 'T8-P8',
+    'P8-O2',
+)
+
+
+def _labram_map_ch_names(ch_names: list[str],
+                         vocab: tuple[str, ...] | list[str] | None = None
+                         ) -> list[str]:
+    """Map arbitrary EEG channel labels onto LaBraM's 10-20 vocabulary.
+
+    LaBraM's ``forward`` uppercases each channel name and looks it up in the
+    montage vocabulary it was pretrained with, so EGI GSN-HydroCel labels
+    (``E1``…``E128``) — which HBN recordings use — would all miss. We resolve
+    each input label to the *nearest* vocab electrode by 3D montage position
+    (GSN-HydroCel-128 → ``standard_1005``). Labels already in the vocabulary
+    pass through unchanged (case-normalised). This is the LaBraM analogue of
+    ``_zuna_chan_positions``: nominal montage geometry, no per-subject digitised
+    coordinates.
+    """
+    vocab = list(vocab) if vocab is not None else list(LABRAM_VOCAB)
+    vocab_upper = {v.upper(): v for v in vocab}
+
+    # Fast path: labels already in the vocabulary need no montage lookup, so
+    # the common case (and unit tests) doesn't drag in MNE. Only resolve the
+    # GSN→10-20 geometry when at least one label is out-of-vocabulary.
+    if all(str(n).strip().upper() in vocab_upper for n in ch_names):
+        return [vocab_upper[str(n).strip().upper()] for n in ch_names]
+
+    try:
+        import mne
+    except ImportError as e:  # pragma: no cover — ships with braindecode
+        raise ImportError(
+            "LaBraMAdapter needs MNE to map GSN-HydroCel-128 channel labels "
+            "to LaBraM's 10-20 vocabulary. It ships with braindecode; "
+            "install 'mne'."
+        ) from e
+
+    ten = mne.channels.make_standard_montage(
+        "standard_1005").get_positions()["ch_pos"]
+    tgt = {v: ten[v] for v in vocab if v in ten}     # vocab names with a 3D pos
+    tnames = list(tgt)
+    tarr = (np.asarray([tgt[v] for v in tnames], dtype=np.float64)
+            if tnames else None)
+
+    gsn = mne.channels.make_standard_montage(
+        "GSN-HydroCel-128").get_positions()["ch_pos"]
+
+    out: list[str] = []
+    for name in ch_names:
+        key = str(name).strip()
+        if key.upper() in vocab_upper:
+            out.append(vocab_upper[key.upper()])
+            continue
+        pos = None
+        for k in (key, key.upper(), key.capitalize()):
+            if k in gsn:
+                pos = gsn[k]
+                break
+        if pos is not None and tarr is not None:
+            d = np.linalg.norm(tarr - np.asarray(pos, dtype=np.float64), axis=1)
+            out.append(tnames[int(d.argmin())])
+        elif tnames:
+            out.append(tnames[0])     # last-resort fallback (unresolvable label)
+        else:
+            out.append(key.upper())
+    return out
+
 
 class LaBraMAdapter(HFModelAdapter):
     """Adapter for LaBraM (Large Brain Model for EEG, ICLR'24 spotlight).
@@ -256,8 +345,11 @@ class LaBraMAdapter(HFModelAdapter):
     layer       : block index (default -1).
     hook_path   : dotted path to block list (``blocks`` for braindecode's port).
     n_channels  : montage channel count. Required by braindecode's Labram
-                  constructor.
-    n_times     : window length in samples (LaBraM default 1 s @ 200 Hz = 200).
+                  constructor (pretrained checkpoint = 128).
+    n_times     : window length in samples. The pretrained checkpoint's
+                  positional embedding is fixed at 15 s @ 200 Hz = 3000; the
+                  forward pass rejects other lengths. Only relevant when
+                  constructing from local ``weights``.
     weights     : path to a local ``.pth`` checkpoint (LaBraM weights are
                   released as ``.pth`` files, not on HF).
     device      : "cuda" or "cpu". Defaults to cuda if available.
@@ -265,7 +357,7 @@ class LaBraMAdapter(HFModelAdapter):
 
     def __init__(self, *, layer: int = -1,
                  hook_path: str = LABRAM_DEFAULT_HOOK_PATH,
-                 n_channels: int = 64, n_times: int = 200,
+                 n_channels: int = LABRAM_N_CHANS, n_times: int = LABRAM_N_TIMES,
                  weights: str | None = None,
                  device: str | None = None):
         self.layer = layer
@@ -275,6 +367,7 @@ class LaBraMAdapter(HFModelAdapter):
         self.weights = weights
         self._device = device
         self._d_model: int | None = None
+        self._vocab: list[str] | None = None
         self._captured: np.ndarray | None = None
         self._hook_handle = None
 
@@ -320,6 +413,15 @@ class LaBraMAdapter(HFModelAdapter):
 
         self._hook_handle = target.register_forward_hook(self._capture_hook)
 
+        # Channel vocabulary the checkpoint was trained with (chs_info order).
+        # Used to map arbitrary input montages onto names the model knows.
+        chs = getattr(model, "chs_info", None)
+        if chs:
+            self._vocab = [c.get("ch_name") for c in chs
+                           if c.get("ch_name") is not None]
+        if not self._vocab:
+            self._vocab = list(LABRAM_VOCAB)
+
         # braindecode Labram exposes embedding dim as `embed_dim` on the model
         self._d_model = getattr(model, "embed_dim", None)
         if self._d_model is None:
@@ -343,8 +445,19 @@ class LaBraMAdapter(HFModelAdapter):
         eeg_np = np.asarray(inputs["eeg"], dtype=np.float32)
         eeg = torch.from_numpy(eeg_np).to(self._device)
 
+        # LaBraM needs per-channel names so its channel embedding lines up with
+        # the input montage. HBN ships GSN-HydroCel labels (E1…E128); map them
+        # to the nearest 10-20 vocab name the model understands. Without names
+        # the model falls back to its canonical chs_info order, which does NOT
+        # match GSN ordering — so always pass them when available.
+        ch_names = inputs.get("ch_names") or inputs.get("electrode_names")
+        forward_kwargs: dict[str, Any] = {}
+        if ch_names is not None:
+            forward_kwargs["ch_names"] = _labram_map_ch_names(
+                list(ch_names), self._vocab)
+
         with torch.no_grad():
-            _ = model(eeg)
+            _ = model(eeg, **forward_kwargs)
 
         if self._captured is None:
             raise RuntimeError(

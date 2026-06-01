@@ -280,15 +280,18 @@ class TestREVEAdapter:
 class _MockLaBraMModel:
     def __init__(self, n_blocks=3, d_model=200, n_patches=8):
         self.embed_dim = d_model
+        self.chs_info = [{"ch_name": n} for n in ("FP1", "FP2", "CZ", "PZ")]
         block_outputs = [
             _FakeTensor(np.random.randn(2, n_patches, d_model).astype(np.float32))
             for _ in range(n_blocks)
         ]
         self.blocks = [_MockBlock(o) for o in block_outputs]
+        self.last_ch_names = None
     def to(self, device): return self
     def eval(self): return self
     def load_state_dict(self, state, strict=False): pass
-    def __call__(self, eeg):
+    def __call__(self, eeg, ch_names=None, **kw):
+        self.last_ch_names = ch_names
         for b in self.blocks:
             b._fire()
         return MagicMock()
@@ -326,8 +329,9 @@ class TestLaBraMAdapter:
         a = LaBraMAdapter()
         assert a.layer == -1
         assert a.hook_path == "blocks"
-        assert a.n_channels == 64
-        assert a.n_times == 200
+        # Pretrained checkpoint defaults: 128 chans, 15 s @ 200 Hz = 3000.
+        assert a.n_channels == 128
+        assert a.n_times == 3000
 
     def test_output_space(self):
         assert LaBraMAdapter().output_space == "labram-hidden-states"
@@ -337,21 +341,56 @@ class TestLaBraMAdapter:
         a.load_model(LABRAM_DEFAULT_ID)
         assert a.output_dim == 200
 
+    def test_load_model_captures_vocab(self, patched_labram):
+        a = LaBraMAdapter()
+        a.load_model(LABRAM_DEFAULT_ID)
+        assert a._vocab == ["FP1", "FP2", "CZ", "PZ"]
+
     def test_extract_features_returns_hooked_layer_output(self, patched_labram):
         mdl = patched_labram
         a = LaBraMAdapter(layer=1)
         loaded = a.load_model(LABRAM_DEFAULT_ID)
         expected = mdl.blocks[1]._output._arr
         out = a.extract_features(
-            loaded, {"eeg": np.zeros((2, 64, 200), dtype=np.float32)}
+            loaded, {"eeg": np.zeros((2, 4, 3000), dtype=np.float32)}
         )
         np.testing.assert_array_equal(out, expected)
+
+    def test_extract_features_passes_mapped_ch_names(self, patched_labram):
+        # ch_names in the inputs dict get mapped to vocab and forwarded.
+        # With vocab = FP1/FP2/CZ/PZ, an in-vocab label passes through; a
+        # label outside the vocab still resolves to *some* vocab name.
+        mdl = patched_labram
+        a = LaBraMAdapter()
+        loaded = a.load_model(LABRAM_DEFAULT_ID)
+        a.extract_features(
+            loaded,
+            {"eeg": np.zeros((2, 2, 3000), dtype=np.float32),
+             "ch_names": ["fp1", "Cz"]},
+        )
+        assert mdl.last_ch_names == ["FP1", "CZ"]
 
     def test_missing_eeg_raises(self, patched_labram):
         a = LaBraMAdapter()
         loaded = a.load_model(LABRAM_DEFAULT_ID)
         with pytest.raises(ValueError, match="'eeg'"):
             a.extract_features(loaded, {})
+
+    def test_map_ch_names_vocab_passthrough(self):
+        # All-in-vocab labels are case-normalised and need no montage lookup.
+        from eeg_fm_spectral.eeg_fm import _labram_map_ch_names
+        out = _labram_map_ch_names(["fp1", "Cz", "pz"],
+                                   vocab=["FP1", "CZ", "PZ"])
+        assert out == ["FP1", "CZ", "PZ"]
+
+    def test_map_ch_names_gsn_to_vocab(self):
+        # Real MNE geometry (skips if mne unavailable): GSN E-names that aren't
+        # in the vocab resolve to nearest 10-20 vocab name, always in-vocab.
+        pytest.importorskip("mne")
+        from eeg_fm_spectral.eeg_fm import _labram_map_ch_names, LABRAM_VOCAB
+        out = _labram_map_ch_names(["E1", "E50", "E101"])
+        assert len(out) == 3
+        assert all(n in LABRAM_VOCAB for n in out)
 
 
 # ===========================================================================
