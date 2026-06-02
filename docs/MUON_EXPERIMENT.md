@@ -87,7 +87,53 @@ re-run all three measurements:
 
 Compute-cheap (LoRA), and scientifically the most interesting: it ties the
 RG-optimizer prediction directly to the specific α < 2 matrices and the SAE
-yield this repo already reports. **Not yet scaffolded.**
+yield this repo already reports. **Scaffolded** — steps 1 + 4 (the post-hoc
+Δα on the merged matrices and the downstream bifactor probe) run directly;
+steps 2 + 3 (re-extract → participation ratio → SAE yield) reuse the existing
+extract/SAE pipeline on a merged checkpoint.
+
+```bash
+# A/B on the bifactor probe: frozen REVE + LoRA on the 5 α<2 attention
+# matrices, AdamW then Muon, shared release/seed/split. Single GPU, FIFO.
+# REVE is gated — accept the Responsible Use Agreement and have an HF token.
+RELEASE=5 FULL=1 sbatch scripts/reve_lora_bifactor.sbatch
+```
+
+The run trains `{LoRA matrices + linear head}` twice (the only difference is the
+optimizer), then prints, for both runs:
+
+```
+=== Scope C: LoRA-REVE bifactor, Muon vs AdamW ===
+                adamw     muon      Δ(muon-adamw)
+r/externalizing  +0.xxx    +0.xxx    +0.xxx
+...
+r/mean           +0.xxx    +0.xxx    +0.xxx
+
+-- H1: alpha_hill on the 5 α<2 LoRA targets (toward 2.0 from below) --
+transformer.layers.2.0.to_qkv      base=1.56  adamw→...  muon→...
+...
+```
+
+Under the hand-tools:
+
+- `eeg_fm_spectral.lora` — the pure-math core (`newton_schulz`,
+  `select_lora_targets`, `lora_delta`, `DEFAULT_REVE_LORA_TARGETS`,
+  `weight_spectral_summary`) is numpy-only and importable without torch; the
+  torch pieces (`LoRALinear`, `inject_lora`, `make_muon` — a vendored
+  single-device Muon) import torch lazily inside factory functions.
+- `scripts/reve_lora_bifactor.py --optimizer {adamw,muon}` — the driver. Muon
+  goes on the 2-D LoRA matrices, AdamW on the head + 1-D params (the mandatory
+  hybrid). The post-hoc Δα reuses the same `weight_spectral_summary` as Scope A,
+  so the α-fit code is bit-identical across both scopes.
+
+> **Same LR caveat as Scope A.** Muon's update is RMS-matched; tune `MUON_LR`
+> and `ADAM_LR` independently and compare best-of-best.
+
+> The driver's eval split is a subject-level GroupShuffleSplit within one
+> release (so it runs on a single release); NeuralBench's canonical eval holds
+> out R5 via a PredefinedSplit. Pass the same `--release`/`--seed` to both runs
+> so the split is identical — the A/B delta is the interpretable quantity, not
+> the absolute r.
 
 ### Scope B — from-scratch small encoder *(gold standard, expensive)*
 

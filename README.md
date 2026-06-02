@@ -60,11 +60,14 @@ eeg_fm_spectral/
   adapters.py   model-agnostic HuggingFace adapter registry + JAX factory
   eeg_fm.py     REVE / LaBraM / ZUNA activation-extraction adapters (forward hooks)
   sae.py        TopK sparse autoencoder, pure JAX (Gao 2024 aux_k, dictionary_health)
+  lora.py       LoRA adapters + vendored Muon + weight_spectral_summary (Scope C; torch-lazy)
 scripts/
   extract_eeg_fm_acts.py        eegdash/HBN -> windows @ 200 Hz -> block activations -> .npz
   extract_eeg_fm_acts_local_bids.py   per-subject streaming variant (large releases)
   train_sae.py                  fit a TopK SAE (--optimizer adam|muon) to extracted activations
-  muon_sae_bakeoff.sbatch       Muon-vs-AdamW SAE A/B (docs/MUON_EXPERIMENT.md)
+  muon_sae_bakeoff.sbatch       Muon-vs-AdamW SAE A/B — Scope A (docs/MUON_EXPERIMENT.md)
+  reve_lora_bifactor.py         LoRA fine-tune frozen REVE on the HBN bifactor probe,
+                                AdamW vs Muon on the 5 α<2 attention matrices — Scope C
   sae_concept_probes.py         per-feature linear/logistic probes -> HBN clinical concepts
   analyze_eegfm_weightwatcher.py, analyze_reve_weightwatcher.py   WeightWatcher HTSR analysis
   download_hbn_s3_direct.py, predownload_hbn_all.py               HBN data staging
