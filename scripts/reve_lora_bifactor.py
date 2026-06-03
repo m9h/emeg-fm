@@ -162,6 +162,7 @@ def build_model(layer, n_targets, rank, alpha, device):
     model_dict = adapter.load_model(REVE_BASE_ID)
     model = model_dict["model"]
     wrapped = inject_lora(model, DEFAULT_REVE_LORA_TARGETS, rank=rank, alpha=alpha)
+    model.to(device)  # inject_lora's fresh lora_A/lora_B init on CPU; base is on device
 
     d_model = adapter.output_dim
     head = nn.Linear(d_model, n_targets).to(device)

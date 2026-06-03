@@ -14,8 +14,6 @@ from __future__ import annotations
 import abc
 from typing import Any, NamedTuple
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 
@@ -23,8 +21,10 @@ import numpy as np
 # PyTorch -> JAX bridge
 # ---------------------------------------------------------------------------
 
-def torch_to_jax(tensor) -> jnp.ndarray:
+def torch_to_jax(tensor) -> "jnp.ndarray":
     """Convert a PyTorch tensor, numpy array, or JAX array to a JAX array."""
+    import jax.numpy as jnp
+
     if isinstance(tensor, jnp.ndarray):
         return tensor
     if isinstance(tensor, np.ndarray):

@@ -130,12 +130,14 @@ if [[ -n "$HOST_LIBCUDA" && -e "$HOST_LIBCUDA" ]]; then
     LIBCUDA_BIND=( -B "$HOST_LIBCUDA":/usr/local/cuda/compat/lib/libcuda.so.1 )
 fi
 
+# No PYTHONNOUSERSITE: eegdash/braindecode/mne live in ~/.local and the SIF
+# lacks them. Safe here because torch/triton/torchaudio are NOT in user-site
+# (only torchinfo + a harmless jax), so nothing shadows the SIF's CUDA stack.
 run_in_sif () {
     apptainer exec --nv --no-init \
         --env HF_TOKEN="$HF_TOKEN" \
         --env HF_HOME="$HF_CACHE" \
         --env PYTHONPATH="$PROJECT_ROOT" \
-        --env PYTHONNOUSERSITE=1 \
         -B "$PROJECT_ROOT":"$PROJECT_ROOT" \
         -B /data:/data \
         -B "$CACHE_DIR":"$CACHE_DIR" \
