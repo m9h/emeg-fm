@@ -1,4 +1,4 @@
-"""Tests for eeg_fm_spectral.lora — the Scope C LoRA + vendored-Muon helpers.
+"""Tests for emeg_fm.lora — the Scope C LoRA + vendored-Muon helpers.
 
 The pure-math pieces (newton_schulz, select_lora_targets, lora_delta,
 weight_spectral_summary) are numpy-only and always run. The torch pieces
@@ -8,7 +8,7 @@ so the suite still passes on the CPU venv without torch.
 import numpy as np
 import pytest
 
-from eeg_fm_spectral.lora import (
+from emeg_fm.lora import (
     DEFAULT_REVE_LORA_TARGETS,
     lora_delta,
     newton_schulz,
@@ -132,7 +132,7 @@ class TestWeightSpectralSummary:
         assert s["participation_ratio"] > 25      # mass spread across all dims
 
     def test_reexport_identity(self):
-        from eeg_fm_spectral.sae import weight_spectral_summary as via_sae
+        from emeg_fm.sae import weight_spectral_summary as via_sae
         assert via_sae is weight_spectral_summary
 
 
@@ -144,7 +144,7 @@ class TestTorchPieces:
     def test_lora_linear_forward_starts_at_base(self):
         torch = pytest.importorskip("torch")
         import torch.nn as nn
-        from eeg_fm_spectral.lora import _lora_linear_cls
+        from emeg_fm.lora import _lora_linear_cls
 
         LoRALinear = _lora_linear_cls()
         base = nn.Linear(10, 6)
@@ -159,7 +159,7 @@ class TestTorchPieces:
     def test_merged_weight_matches_base_plus_delta(self):
         torch = pytest.importorskip("torch")
         import torch.nn as nn
-        from eeg_fm_spectral.lora import _lora_linear_cls
+        from emeg_fm.lora import _lora_linear_cls
 
         LoRALinear = _lora_linear_cls()
         base = nn.Linear(10, 6)
@@ -175,7 +175,7 @@ class TestTorchPieces:
     def test_inject_lora_replaces_targets(self):
         torch = pytest.importorskip("torch")
         import torch.nn as nn
-        from eeg_fm_spectral.lora import inject_lora, _lora_linear_cls
+        from emeg_fm.lora import inject_lora, _lora_linear_cls
 
         # Tiny stand-in with the same dotted layout as REVE's two target kinds.
         attn = nn.ModuleList([nn.Module(), nn.Module()])
@@ -197,7 +197,7 @@ class TestTorchPieces:
 
     def test_muon_orthogonalizes_2d_update(self):
         torch = pytest.importorskip("torch")
-        from eeg_fm_spectral.lora import make_muon
+        from emeg_fm.lora import make_muon
 
         Muon = make_muon()
         w = torch.nn.Parameter(torch.randn(16, 8))

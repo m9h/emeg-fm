@@ -3,14 +3,14 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "eeg-fm-spectral"
+name = "emeg-fm"
 version = "0.1.0"
-description = "Spectral diagnostics (WeightWatcher/HTSR) and TopK-SAE interpretability for EEG foundation models"
+description = "Diagnostics, interpretability, identity auditing, and realtime decoding for E/MEG foundation models"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Morgan G. Hough" }]
-keywords = ["eeg", "foundation-models", "sparse-autoencoder", "weightwatcher", "htsr", "interpretability", "jax"]
+keywords = ["eeg", "meg", "foundation-models", "sparse-autoencoder", "weightwatcher", "htsr", "interpretability", "retrieval", "jax"]
 
 # Core library (SAE + adapter machinery). The pure-JAX SAE needs only these.
 dependencies = [
@@ -43,7 +43,7 @@ test = [
 ]
 
 [tool.setuptools]
-packages = ["eeg_fm_spectral"]
+packages = ["emeg_fm"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

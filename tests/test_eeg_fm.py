@@ -1,5 +1,5 @@
 """
-Tests for eeg_fm_spectral.eeg_fm — REVE + LaBraM HuggingFace adapters.
+Tests for emeg_fm.eeg_fm — REVE + LaBraM HuggingFace adapters.
 
 All tests mock the actual HF / braindecode model classes — no downloads,
 no torch GPU work, no gated-checkpoint access. Coverage:
@@ -16,8 +16,8 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
 
-from eeg_fm_spectral.adapters import get_adapter, make_hf_encoder
-from eeg_fm_spectral.eeg_fm import (
+from emeg_fm.adapters import get_adapter, make_hf_encoder
+from emeg_fm.eeg_fm import (
     REVEAdapter,
     LaBraMAdapter,
     ZunaAdapter,
@@ -378,7 +378,7 @@ class TestLaBraMAdapter:
 
     def test_map_ch_names_vocab_passthrough(self):
         # All-in-vocab labels are case-normalised and need no montage lookup.
-        from eeg_fm_spectral.eeg_fm import _labram_map_ch_names
+        from emeg_fm.eeg_fm import _labram_map_ch_names
         out = _labram_map_ch_names(["fp1", "Cz", "pz"],
                                    vocab=["FP1", "CZ", "PZ"])
         assert out == ["FP1", "CZ", "PZ"]
@@ -387,7 +387,7 @@ class TestLaBraMAdapter:
         # Real MNE geometry (skips if mne unavailable): GSN E-names that aren't
         # in the vocab resolve to nearest 10-20 vocab name, always in-vocab.
         pytest.importorskip("mne")
-        from eeg_fm_spectral.eeg_fm import _labram_map_ch_names, LABRAM_VOCAB
+        from emeg_fm.eeg_fm import _labram_map_ch_names, LABRAM_VOCAB
         out = _labram_map_ch_names(["E1", "E50", "E101"])
         assert len(out) == 3
         assert all(n in LABRAM_VOCAB for n in out)
@@ -631,7 +631,7 @@ class TestZunaAdapter:
         # Real MNE montage resolution (skips if mne unavailable). Verifies our
         # name lookup returns distinct, in-range coordinates for GSN labels.
         pytest.importorskip("mne")
-        from eeg_fm_spectral.eeg_fm import _zuna_chan_positions
+        from emeg_fm.eeg_fm import _zuna_chan_positions
         pos = _zuna_chan_positions(["E1", "E50", "E101"])
         assert pos.shape == (3, 3)
         # Distinct electrodes -> distinct positions, all within head radius.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Train a TopK SAE on a pre-extracted activation .npz.
 
-Loads ``scripts/extract_eeg_fm_acts.py`` output, fits ``eeg_fm_spectral.sae``
+Loads ``scripts/extract_eeg_fm_acts.py`` output, fits ``emeg_fm.sae``
 to the activations, saves checkpoint + dictionary-health audit JSON.
 
 Single-GPU JAX inside the NGC JAX SIF. The activation tensor is held in
@@ -26,7 +26,7 @@ import numpy as np
 
 
 def _ensure_repo_on_path():
-    """Add the repo root to sys.path so ``eeg_fm_spectral`` imports resolve
+    """Add the repo root to sys.path so ``emeg_fm`` imports resolve
     even when this script is run directly (``python scripts/train_sae.py``)."""
     import sys
     import os
@@ -42,7 +42,7 @@ def train(args):
     import optax
 
     _ensure_repo_on_path()
-    from eeg_fm_spectral.sae import (
+    from emeg_fm.sae import (
         make_topk_sae, make_sae_train_step, init_sae_optimizer,
         recon_loss, dictionary_health, TopKSAEParams,
         make_sae_train_step_aux_k, init_sae_train_state,

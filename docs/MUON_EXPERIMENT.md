@@ -61,7 +61,7 @@ Under the hand-tools:
 - `scripts/train_sae.py --optimizer {adam,muon}` — `muon` uses
   `optax.contrib.muon`, which orthogonalizes the 2-D `enc_weight` / `dec_weight`
   gradients via Newton–Schulz and routes the 1-D biases to its internal AdamW.
-- `eeg_fm_spectral.sae.weight_spectral_summary(W)` — host-side SVD →
+- `emeg_fm.sae.weight_spectral_summary(W)` — host-side SVD →
   `participation_ratio` (= `M_tr`), `alpha_hill` (a Hill-estimator proxy for
   WeightWatcher's α, **not** the KS-optimised `powerlaw.Fit` — use it for
   relative A/B only), and `stable_rank`. Recorded in each run's
@@ -116,7 +116,7 @@ transformer.layers.2.0.to_qkv      base=1.56  adamw→...  muon→...
 
 Under the hand-tools:
 
-- `eeg_fm_spectral.lora` — the pure-math core (`newton_schulz`,
+- `emeg_fm.lora` — the pure-math core (`newton_schulz`,
   `select_lora_targets`, `lora_delta`, `DEFAULT_REVE_LORA_TARGETS`,
   `weight_spectral_summary`) is numpy-only and importable without torch; the
   torch pieces (`LoRALinear`, `inject_lora`, `make_muon` — a vendored

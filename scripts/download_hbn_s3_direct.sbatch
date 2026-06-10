@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-PROJECT_ROOT=/home/mhough/dev/eeg-fm-spectral
+PROJECT_ROOT=/home/mhough/dev/emeg-fm
 SIF=/data/derivatives/containers/pytorch_26.04.sif
 OUT_DIR=/data/derivatives/eeg_sae
 CACHE_DIR=/data/derivatives/eegdash_cache

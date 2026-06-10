@@ -47,7 +47,7 @@ ALL_CONCEPTS = CONTINUOUS_CONCEPTS + BINARY_CONCEPTS
 
 
 def _ensure_repo_on_path():
-    """Add the repo root to sys.path so ``eeg_fm_spectral`` imports resolve
+    """Add the repo root to sys.path so ``emeg_fm`` imports resolve
     even when this script is run directly (``python scripts/...``)."""
     import sys, os
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -63,7 +63,7 @@ def encode_latents(activations: np.ndarray, sae_npz: dict,
     import jax
     import jax.numpy as jnp
     _ensure_repo_on_path()
-    from eeg_fm_spectral.sae import TopKSAEParams, sae_encode, topk_sparsify
+    from emeg_fm.sae import TopKSAEParams, sae_encode, topk_sparsify
 
     params = TopKSAEParams(
         enc_weight=jnp.asarray(sae_npz["enc_weight"]),

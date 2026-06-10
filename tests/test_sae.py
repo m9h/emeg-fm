@@ -1,5 +1,5 @@
 """
-Tests for eeg_fm_spectral.sae — TopK Sparse Autoencoder.
+Tests for emeg_fm.sae — TopK Sparse Autoencoder.
 
 Covers:
   - topk_sparsify: exactness (exactly k nonzeros), magnitude correctness, edge cases
@@ -14,7 +14,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from eeg_fm_spectral.sae import (
+from emeg_fm.sae import (
     TopKSAEParams,
     make_topk_sae,
     sae_encode,

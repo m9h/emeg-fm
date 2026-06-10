@@ -176,7 +176,7 @@ def weight_spectral_summary(weight, *, tail_frac: float = 0.5) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Torch pieces — imported lazily so ``import eeg_fm_spectral.lora`` is torch-free
+# Torch pieces — imported lazily so ``import emeg_fm.lora`` is torch-free
 # ---------------------------------------------------------------------------
 
 def _lora_linear_cls():

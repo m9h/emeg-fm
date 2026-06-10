@@ -1,9 +1,11 @@
-# eeg-fm-spectral
+# emeg-fm
 
-**Spectral diagnostics of EEG foundation models — and the sparse-autoencoder interpretability they predict.**
+**Diagnostics, interpretability, and realtime decoding for E/MEG foundation models.**
 
-Two complementary, weights-first lines of analysis on the current generation of
-EEG foundation models (REVE, LaBraM, LUNA, BENDR, BIOT, CBraMod, ZUNA):
+The EMEG counterpart to MedARC's `fmri-fm` / `smri-fm`: weights-first analysis,
+mechanistic interpretability, identity auditing, and a realtime-EMEG decoding
+demo on the current generation of E/MEG foundation models (REVE, LaBraM, LUNA,
+BENDR, BIOT, CBraMod, ZUNA):
 
 1. **WeightWatcher / HTSR analysis** — per-layer heavy-tailed power-law exponents
    (α) of every weight matrix, ranking pretraining quality *without any
@@ -12,10 +14,18 @@ EEG foundation models (REVE, LaBraM, LUNA, BENDR, BIOT, CBraMod, ZUNA):
    interpretability that decomposes a model's internal representations into a
    sparse dictionary, then probes each feature against HBN clinical concepts
    (p-factor, internalizing, externalizing, attention, age, sex).
+3. **FMScope identity audit** — the five frozen-representation diagnostics of
+   *"The Identity Trap in EEG Foundation Models"* (arXiv 2606.06647), vendored
+   under [`fmscope/`](fmscope/), to test whether a model's accuracy rides on
+   subject-identity leakage rather than genuine task signal.
+4. **Realtime-EMEG decoding** — frozen-EEG-FM → image retrieval on Alljoined-1.6M
+   (32-ch consumer EEG), the EMEG analogue of the NSD/MindEye fMRI demo.
+   ([`emeg_fm/alljoined.py`](emeg_fm/alljoined.py),
+   [`scripts/extract_alljoined_reve.py`](scripts/extract_alljoined_reve.py))
 
 The pure-JAX SAE (Gao 2024 aux_k dead-feature revival) lives in
-[`eeg_fm_spectral/sae.py`](eeg_fm_spectral/sae.py); the activation-extraction
-adapters in [`eeg_fm_spectral/eeg_fm.py`](eeg_fm_spectral/eeg_fm.py).
+[`emeg_fm/sae.py`](emeg_fm/sae.py); the activation-extraction
+adapters in [`emeg_fm/eeg_fm.py`](emeg_fm/eeg_fm.py).
 
 ## Why these two analyses belong together
 
@@ -56,7 +66,7 @@ dictionary.**
 ## Repository layout
 
 ```
-eeg_fm_spectral/
+emeg_fm/
   adapters.py   model-agnostic HuggingFace adapter registry + JAX factory
   eeg_fm.py     REVE / LaBraM / ZUNA activation-extraction adapters (forward hooks)
   sae.py        TopK sparse autoencoder, pure JAX (Gao 2024 aux_k, dictionary_health)

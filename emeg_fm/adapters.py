@@ -3,7 +3,7 @@
 A minimal adapter/registry layer that lets a frozen pretrained model be
 plugged into the JAX factory pattern (``make_*() -> (params, forward_fn)``)
 used throughout this package. EEG foundation-model adapters (REVE, LaBraM,
-ZUNA) live in :mod:`eeg_fm_spectral.eeg_fm` and register themselves here.
+ZUNA) live in :mod:`emeg_fm.eeg_fm` and register themselves here.
 
 This is the slimmed, EEG-only extraction of the original ``jaxoccoli``
 ``hf_encoder`` module — the fMRI-specific adapters (TRIBEv2, Raramuri) and the

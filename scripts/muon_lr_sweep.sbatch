@@ -29,7 +29,7 @@
 
 set -euo pipefail
 
-PROJECT_ROOT=/home/mhough/dev/eeg-fm-spectral
+PROJECT_ROOT=/home/mhough/dev/emeg-fm
 SIF=/data/derivatives/containers/jax-arm64-cu13.sif
 OUT_DIR=/data/derivatives/eeg_sae
 

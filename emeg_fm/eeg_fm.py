@@ -47,7 +47,7 @@ from typing import Any
 
 import numpy as np
 
-from eeg_fm_spectral.adapters import HFModelAdapter, register_adapter
+from emeg_fm.adapters import HFModelAdapter, register_adapter
 
 
 # ---------------------------------------------------------------------------

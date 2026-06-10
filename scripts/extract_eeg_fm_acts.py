@@ -264,7 +264,7 @@ def make_windows(concat_ds, *, win_seconds: float, target_sfreq: float):
 # ---------------------------------------------------------------------------
 
 def _ensure_repo_on_path():
-    """Add the repo root to sys.path so ``eeg_fm_spectral`` imports resolve
+    """Add the repo root to sys.path so ``emeg_fm`` imports resolve
     even when this script is run directly (``python scripts/...``)."""
     import sys
     import os
@@ -276,7 +276,7 @@ def _ensure_repo_on_path():
 def build_adapter(model_id: str, layer: int):
     """Return a loaded ``HFModelAdapter`` and its loaded model handle."""
     _ensure_repo_on_path()
-    from eeg_fm_spectral.eeg_fm import (
+    from emeg_fm.eeg_fm import (
         REVEAdapter, LaBraMAdapter, ZunaAdapter, REVE_BASE_ID, ZUNA_BASE_ID,
     )
 

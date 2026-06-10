@@ -309,9 +309,9 @@ def dictionary_health(
 # ``weight_spectral_summary`` lives in ``lora.py`` (pure-numpy, torch- and
 # jax-free) so the JAX SAE bakeoff here and the PyTorch LoRA-REVE run (Scope C)
 # share the *identical* α-fit code — a control the Muon experiment requires.
-# Re-exported so existing ``from eeg_fm_spectral.sae import
+# Re-exported so existing ``from emeg_fm.sae import
 # weight_spectral_summary`` callers (and the Scope A tests) are unchanged.
-from eeg_fm_spectral.lora import weight_spectral_summary  # noqa: E402,F401
+from emeg_fm.lora import weight_spectral_summary  # noqa: E402,F401
 
 
 # ---------------------------------------------------------------------------

@@ -170,7 +170,7 @@ Or via apptainer from `gx10-dgx-spark`:
 HF_TOKEN=$(cat ~/.cache/huggingface/token) \
 apptainer exec --no-init \
   --env HF_TOKEN --env HF_HOME=/data/derivatives/eeg_sae/hf_cache \
-  --env MPLCONFIGDIR=/tmp/mpl --env PYTHONPATH=/home/mhough/dev/eeg-fm-spectral \
+  --env MPLCONFIGDIR=/tmp/mpl --env PYTHONPATH=/home/mhough/dev/emeg-fm \
   -B /data:/data -B /home/mhough:/home/mhough \
   /data/derivatives/containers/pytorch_26.04.sif \
   python scripts/analyze_eegfm_weightwatcher.py

@@ -18,7 +18,7 @@ Pipeline
 Optimizer split (the experiment's whole point)
 ----------------------------------------------
     --optimizer adamw : one AdamW over the LoRA matrices + head.
-    --optimizer muon  : Muon (vendored, eeg_fm_spectral.lora.make_muon) over the
+    --optimizer muon  : Muon (vendored, emeg_fm.lora.make_muon) over the
                         2-D LoRA matrices; AdamW over the head + any 1-D params.
                         Muon's update is RMS-matched, so it needs its own (larger)
                         --lr; tune it separately from --adam-lr (see the doc).
@@ -58,10 +58,10 @@ for _p in (_HERE, _REPO):
 from extract_eeg_fm_acts import (  # noqa: E402  (after sys.path edit + stub)
     HBN_FIELDS, load_eegdash, make_windows, subject_metadata,
 )
-from eeg_fm_spectral.eeg_fm import REVEAdapter, REVE_BASE_ID  # noqa: E402
+from emeg_fm.eeg_fm import REVEAdapter, REVE_BASE_ID  # noqa: E402
 # Import the spectral summary from lora.py (not sae.py): sae.py imports JAX at
 # top level, and this driver runs in the PyTorch SIF where JAX isn't installed.
-from eeg_fm_spectral.lora import (  # noqa: E402
+from emeg_fm.lora import (  # noqa: E402
     DEFAULT_REVE_LORA_TARGETS, inject_lora, lora_delta, make_muon,
     weight_spectral_summary,
 )
