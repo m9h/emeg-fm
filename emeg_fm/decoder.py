@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from emeg_fm.alljoined import preprocess_for_reve, average_by_image, topk_retrieval
+from emeg_fm.alljoined import (
+    ReveInputNorm, preprocess_for_reve, average_by_image, topk_retrieval,
+)
 
 
 class StreamingReveDecoder:
@@ -60,6 +62,9 @@ class StreamingReveDecoder:
         self._loaded = None
         self._scaler = None
         self._ridge = None
+        # Layer-2 REVE input contract: fit-once per-channel scaler, frozen at
+        # calibration and reused for every online epoch (reve.yaml parity).
+        self._norm = None
 
     # -- feature extraction --------------------------------------------------
 
@@ -83,8 +88,13 @@ class StreamingReveDecoder:
         if epochs.ndim == 2:
             epochs = epochs[None, ...]
         # sfreq_in is read per-call; epochs from the same source share it.
-        proc = preprocess_for_reve(epochs, sfreq_in=self._sfreq_in,
-                                   sfreq_out=self.sfreq_out, clamp=self.clamp)
+        if self._norm is not None and self._norm.is_fitted:
+            # Frozen calibration scaler → identical transform for calib & online.
+            proc = self._norm.transform(epochs, sfreq_in=self._sfreq_in)
+        else:
+            # Pre-calibration / stateless fallback (per-epoch z-score).
+            proc = preprocess_for_reve(epochs, sfreq_in=self._sfreq_in,
+                                       sfreq_out=self.sfreq_out, clamp=self.clamp)
         if self._feature_fn is not None:
             return np.asarray(self._feature_fn(proc, ch_names), dtype=np.float32)
 
@@ -154,6 +164,10 @@ class StreamingReveDecoder:
                 f"only {len(codes)} calibration image(s) overlap the gallery — "
                 f"need ≥2 to fit a ridge"
             )
+        # Fit the REVE input scaler on the calibration block and freeze it; the
+        # online path reuses these per-channel stats (reve.yaml parity).
+        self._norm = ReveInputNorm(sfreq_out=self.sfreq_out, clamp=self.clamp)
+        self._norm.fit(epochs, self._sfreq_in)
         X = self.features(epochs, ch_names)
         self.fit(X, codes)
         return {
