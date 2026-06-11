@@ -41,12 +41,17 @@ class StreamingReveDecoder:
     feature_fn : optional ``(epochs (N,C,T), ch_names) -> (N, d_feat)`` override.
         When given, REVE is never loaded — used for testing and for plugging in
         an alternative backbone.
+    bridge : optional Layer-3 :class:`emeg_fm.device.DeviceBridge` (or any
+        ``(epochs, ch_names) -> epochs`` callable) applied to raw epochs before
+        the REVE input contract. Use for live consumer-headset data (mains /
+        drift / reference cleanup); leave ``None`` for already-filtered datasets
+        like Alljoined so the replay path is unaffected.
     """
 
     def __init__(self, gallery, gallery_ids, *,
                  model_id="brain-bzh/reve-base", layer=6,
                  sfreq_out=200.0, clamp=15.0, ridge_alpha=1000.0,
-                 device=None, reve_batch=32, feature_fn=None):
+                 device=None, reve_batch=32, feature_fn=None, bridge=None):
         self.gallery = np.asarray(gallery, dtype=np.float64)
         self.gallery_ids = np.asarray(gallery_ids)
         self.id_to_row = {int(g): i for i, g in enumerate(self.gallery_ids)}
@@ -58,6 +63,7 @@ class StreamingReveDecoder:
         self.device = device
         self.reve_batch = reve_batch
         self._feature_fn = feature_fn
+        self._bridge = bridge
         self._adapter = None
         self._loaded = None
         self._scaler = None
@@ -87,6 +93,9 @@ class StreamingReveDecoder:
         epochs = np.asarray(epochs, dtype=np.float64)
         if epochs.ndim == 2:
             epochs = epochs[None, ...]
+        # Layer-3: device cleanup (mains/drift/reref) before the REVE contract.
+        if self._bridge is not None:
+            epochs = np.asarray(self._bridge(epochs, ch_names), dtype=np.float64)
         # sfreq_in is read per-call; epochs from the same source share it.
         if self._norm is not None and self._norm.is_fitted:
             # Frozen calibration scaler → identical transform for calib & online.
@@ -165,9 +174,13 @@ class StreamingReveDecoder:
                 f"need ≥2 to fit a ridge"
             )
         # Fit the REVE input scaler on the calibration block and freeze it; the
-        # online path reuses these per-channel stats (reve.yaml parity).
+        # online path reuses these per-channel stats (reve.yaml parity). Fit on
+        # bridge-cleaned epochs so calibration matches what features() feeds REVE.
+        norm_src = epochs
+        if self._bridge is not None:
+            norm_src = np.asarray(self._bridge(epochs, ch_names), dtype=np.float64)
         self._norm = ReveInputNorm(sfreq_out=self.sfreq_out, clamp=self.clamp)
-        self._norm.fit(epochs, self._sfreq_in)
+        self._norm.fit(norm_src, self._sfreq_in)
         X = self.features(epochs, ch_names)
         self.fit(X, codes)
         return {

@@ -6,8 +6,9 @@ Submodules:
     sae       : TopK sparse autoencoder (Gao 2024 aux_k) in pure JAX
     alljoined : realtime-EMEG EEG->image retrieval (Alljoined-1.6M) helpers
     streaming : live LSL acquisition bridge + ring-buffer epoching (EEG-ExPy)
+    device    : Layer-3 device front-end (mains/drift/reref) for live headsets
     stimuli   : image stimulus sets, CLIP gallery, presentation schedules
     decoder   : per-subject streaming REVE+ridge EEG->image decoder
 """
 __all__ = ["adapters", "eeg_fm", "sae", "alljoined",
-           "streaming", "stimuli", "decoder"]
+           "streaming", "device", "stimuli", "decoder"]

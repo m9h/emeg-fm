@@ -250,6 +250,8 @@ class LSLAcquisition:
         return labels
 
     def connect(self):
+        if self._eeg_inlet is not None:           # idempotent: already resolved
+            return self
         import pylsl
 
         eeg_info = self._resolve(pylsl, stype=self.eeg_type, name=self.eeg_name,

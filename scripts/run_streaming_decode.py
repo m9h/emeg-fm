@@ -92,6 +92,15 @@ def main():
     ap.add_argument("--tmax", type=float, default=1.0)
     ap.add_argument("--montage", nargs="*", default=None,
                     help="explicit channel labels to subset/reorder to")
+    # Layer-3 device bridge (live only; replay data is already filtered)
+    ap.add_argument("--bridge", action="store_true",
+                    help="enable the DeviceBridge front-end (live consumer headset)")
+    ap.add_argument("--mains", type=float, default=60.0,
+                    help="mains notch freq (60 US / 50 EU); 0 disables")
+    ap.add_argument("--highpass", type=float, default=0.5)
+    ap.add_argument("--lowpass", type=float, default=99.5)
+    ap.add_argument("--reref", default=None,
+                    help="'average' for common-average reference, else None")
     # model
     ap.add_argument("--model", default="brain-bzh/reve-base")
     ap.add_argument("--layer", type=int, default=6)
@@ -132,9 +141,24 @@ def main():
         gallery, gallery_ids = ss.gallery, ss.gallery_ids
         src = LSLAcquisition(tmin=args.tmin, tmax=args.tmax, montage=args.montage)
 
+    # Layer-3 bridge: live consumer-headset cleanup. Built lazily once the
+    # source sfreq is known; replay keeps bridge=None (data already filtered).
+    bridge = None
+    if args.bridge:
+        if args.replay:
+            ap.error("--bridge is for live mode; replay data is already filtered")
+        from emeg_fm.device import DeviceBridge
+        sfreq = src.connect().sfreq            # resolves the EEG LSL stream
+        bridge = DeviceBridge(
+            sfreq, highpass=args.highpass, lowpass=args.lowpass,
+            notch=(args.mains or None), reref=args.reref,
+        )
+        print(f"[bridge] {sfreq}Hz hp={args.highpass} lp={bridge.lowpass} "
+              f"notch={bridge.notch} reref={args.reref}", flush=True)
+
     decoder = StreamingReveDecoder(
         gallery, gallery_ids, model_id=args.model, layer=args.layer,
-        ridge_alpha=args.ridge_alpha, device=args.device,
+        ridge_alpha=args.ridge_alpha, device=args.device, bridge=bridge,
     )
 
     # --- collect epochs -----------------------------------------------------
