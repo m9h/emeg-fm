@@ -172,6 +172,23 @@ class REVEAdapter(HFModelAdapter):
         eeg = torch.from_numpy(eeg_np).to(self._device)
         electrode_names = list(inputs["electrode_names"])
 
+        # reve-positions silently drops channel names outside its vocabulary, so
+        # pos_bank(names) can return fewer positions than `eeg` has channels and
+        # REVE.forward then fails ("tensor a (C) must match tensor b (P)"). Keep
+        # eeg and electrode_names aligned by dropping the REVE-unknown channels
+        # here, in the same order pos_bank uses.
+        known = getattr(pos_bank, "mapping", None)
+        if known is not None:
+            keep = [i for i, nm in enumerate(electrode_names) if nm in known]
+            if len(keep) == 0:
+                raise ValueError(
+                    "none of the input electrode_names are in REVE's position "
+                    f"vocabulary; got {electrode_names[:8]}..."
+                )
+            if len(keep) < len(electrode_names):
+                eeg = eeg[:, keep, :]
+                electrode_names = [electrode_names[i] for i in keep]
+
         # REVE's internal Attention dispatches to FlashAttention which only
         # accepts fp16/bf16. The model itself is fp32-loaded and REVE.forward
         # does `eeg = eeg.float()` early on, so we have to autocast at the op
