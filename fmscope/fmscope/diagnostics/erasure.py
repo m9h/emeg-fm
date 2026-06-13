@@ -204,12 +204,13 @@ def _segment_recordings(subject: np.ndarray, label: np.ndarray):
     return window_rec, np.asarray(rec_labels), np.asarray(rec_pids)
 
 
-def _label_bas(features, window_rec, rec_labels, rec_pids, seeds, n_splits):
+def _label_bas(features, window_rec, rec_labels, rec_pids, seeds, n_splits,
+               cv="stratified-kfold"):
     """Per-seed recording-level label BA via the canonical linear probe."""
     from fmscope.training.lp import eval_seed  # local: keeps training optional
     X = np.asarray(features, dtype=np.float32)
     return np.array([eval_seed(X, window_rec, rec_labels, rec_pids, s,
-                               n_splits=n_splits)[0]
+                               cv=cv, n_splits=n_splits)[0]
                      for s in seeds])
 
 
@@ -286,6 +287,7 @@ def subject_axis_erasure(
     subject_cap: int = 100,
     degenerate_frac: float = DEGENERATE_FRAC,
     shrinkage: bool = True,
+    cv: str = "stratified-kfold",
 ) -> ErasureResult:
     """Erase the linear subject axis and re-probe subject identity + label.
 
@@ -346,9 +348,9 @@ def subject_axis_erasure(
         eff_splits = min(5, int(counts.min()))
         if len(classes) == 2 and eff_splits >= 2:
             raw = _label_bas(X, window_recording, rec_labels, rec_pids,
-                             label_seeds, eff_splits)
+                             label_seeds, eff_splits, cv=cv)
             era = _label_bas(Xe, window_recording, rec_labels, rec_pids,
-                             label_seeds, eff_splits)
+                             label_seeds, eff_splits, cv=cv)
             delta = era - raw  # paired per-seed
             raw_mean, era_mean, delta_mean = (float(raw.mean()),
                                               float(era.mean()),

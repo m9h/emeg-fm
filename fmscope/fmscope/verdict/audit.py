@@ -89,6 +89,7 @@ class AuditConfig:
     run_erasure: bool = True
     erasure_gate: float = 0.55
     erasure_label_seeds: tuple = DEFAULT_LABEL_SEEDS
+    erasure_cv: str = "stratified-kfold"  # or "loso" (leave-one-subject-out)
     layer_probe: Optional[dict] = None
     oneoverf: Optional[dict] = None
 
@@ -223,6 +224,7 @@ def audit_cell(
               feats_w, sids_w, labels_w,
               gate=config.erasure_gate,
               label_seeds=config.erasure_label_seeds,
+              cv=config.erasure_cv,
           ) if config.run_erasure else None)
 
     # 6) Numeric diagnostic row.
