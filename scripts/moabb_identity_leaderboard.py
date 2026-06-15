@@ -35,7 +35,11 @@ FIELDS = [
     "label_frac", "subject_frac", "residual_frac",
     "excess_label_ratio", "excess_subject_ratio", "c_bar_value",
     "raw_label_ba", "identity_free_label_ba", "erasure_delta",
-    "erasure_interpretable", "verdict", "layer", "model", "status",
+    "erasure_interpretable",
+    "layer_label_ba_first", "layer_label_ba_last", "layer_label_ba_max",
+    "layer_argmax_depth", "layer_sign",
+    "state_drop", "subject_drop", "oneoverf_role",
+    "verdict", "layer", "model", "status",
 ]
 
 
@@ -80,6 +84,75 @@ def _verdict(label_frac, subject_frac, raw_ba, free_ba) -> str:
     if subject_frac > label_frac:
         return "identity-reliant"
     return "task-carried"
+
+
+def _summarize_layer_probe(probe) -> dict | None:
+    """Reduce a :func:`reve_layer_probe` result to the four AuditConfig keys.
+
+    ``label_ba_{first,last,max}`` are the subject-grouped label balanced
+    accuracies at the shallowest / deepest / best block; ``argmax_depth`` is the
+    depth-fraction (``(k+1)/n_blocks``) of the best block.
+    """
+    import math
+
+    per_depth = probe.get("per_depth", []) if probe else []
+    if not per_depth:
+        return None
+    label_bas = [d["label_ba_mean"] for d in per_depth]
+    finite = [(i, v) for i, v in enumerate(label_bas) if not math.isnan(v)]
+    if not finite:
+        return None
+    argmax_i = max(finite, key=lambda t: t[1])[0]
+    return {
+        "label_ba_first": label_bas[0],
+        "label_ba_last": label_bas[-1],
+        "label_ba_max": max(v for _, v in finite),
+        "argmax_depth": per_depth[argmax_i]["depth_fraction"],
+    }
+
+
+def _layer_sign(summary) -> str:
+    """Reproduction-only rubric for *where* label info lives across depth.
+
+    ``+early`` — label BA peaks in the shallow third of the network
+    (argmax depth-fraction ≤ 0.35) then drops ≥0.04 to the final block: task
+    signal is present early but the head trades it for identity. ``-deep`` —
+    final-block label BA ≤0.45: the head barely separates the task at all.
+    """
+    import math
+
+    if not summary:
+        return ""
+    last, mx = summary["label_ba_last"], summary["label_ba_max"]
+    argf = summary["argmax_depth"]
+    signs = []
+    if not any(math.isnan(x) for x in (mx, last, argf)):
+        if argf <= 0.35 and (mx - last) >= 0.04:
+            signs.append("+early")
+    if not math.isnan(last) and last <= 0.45:
+        signs.append("-deep")
+    return ",".join(signs)
+
+
+def _oneoverf_role(summary) -> str:
+    """Reproduction-only rubric for what the 1/f aperiodic component carries.
+
+    ``state signal`` — ablating 1/f costs >0.03 label BA (the aperiodic slope
+    helps the task). ``subject confound`` — ablating it costs >0.05 subject BA
+    (1/f is an identity fingerprint, the trap mechanism).
+    """
+    import math
+
+    if not summary:
+        return ""
+    sd = summary.get("state_drop_mean", float("nan"))
+    subd = summary.get("subject_drop_mean", float("nan"))
+    roles = []
+    if not math.isnan(subd) and subd > 0.05:
+        roles.append("subject confound")
+    if not math.isnan(sd) and sd > 0.03:
+        roles.append("state signal")
+    return ";".join(roles)
 
 
 def _load_done(csv_path) -> set[str]:
@@ -151,6 +224,44 @@ def _render_md(csv_path, md_path, paradigm_name) -> None:
             f"{fnum(r,'label_frac')} | {fnum(r,'c_bar_value')} | "
             f"{r.get('verdict','—')} |"
         )
+    # Optional depth + 1/f section — only when the layer-probe / FOOOF
+    # diagnostics were run for at least one dataset.
+    def _diag_present(r):
+        for k in ("layer_label_ba_max", "state_drop"):
+            try:
+                if not __import__("math").isnan(float(r[k])):
+                    return True
+            except (KeyError, TypeError, ValueError):
+                pass
+        return bool(r.get("layer_sign") or r.get("oneoverf_role"))
+
+    diag_rows = [r for r in rows if _diag_present(r)]
+    if diag_rows:
+        lines += [
+            "",
+            "## Depth & 1/f diagnostics",
+            "",
+            "`L first/last/max` = subject-grouped label balanced-accuracy at the "
+            "shallowest / deepest / best REVE block; `argmax` = depth-fraction of "
+            "the best block. `sign`: `+early` = task signal peaks shallow then the "
+            "head trades it away (max−last ≥0.04, argmax ≤0.35); `−deep` = final "
+            "block barely separates the task (≤0.45). `state_drop` / `subj_drop` = "
+            "label / subject BA lost when the 1/f aperiodic slope is ablated "
+            "(FOOOF); `role`: `state signal` (1/f helps the task, drop >0.03) vs "
+            "`subject confound` (1/f is an identity fingerprint, drop >0.05).",
+            "",
+            "| Dataset | L first | L last | L max | argmax | sign | state_drop | subj_drop | 1/f role |",
+            "|---|---:|---:|---:|---:|---|---:|---:|---|",
+        ]
+        for r in diag_rows:
+            lines.append(
+                f"| {r['dataset']} | {fnum(r,'layer_label_ba_first')} | "
+                f"{fnum(r,'layer_label_ba_last')} | {fnum(r,'layer_label_ba_max')} | "
+                f"{fnum(r,'layer_argmax_depth',2)} | {r.get('layer_sign','') or '—'} | "
+                f"{fnum(r,'state_drop')} | {fnum(r,'subject_drop')} | "
+                f"{r.get('oneoverf_role','') or '—'} |"
+            )
+
     failed = [r for r in _read_rows(csv_path) if r.get("status") != "ok"]
     if failed:
         lines += ["", "### Skipped / failed", ""]
@@ -159,6 +270,24 @@ def _render_md(csv_path, md_path, paradigm_name) -> None:
     lines.append("")
     with open(md_path, "w") as f:
         f.write("\n".join(lines))
+
+
+# REVE's published input contract band-passes up to 99.5 Hz, but a dataset's
+# native sampling rate caps the analyzable band: MNE refuses an h_freq at/above
+# the native Nyquist, and the paradigm filter applies to *every* recording, so
+# fmax must clear the LOWEST native Nyquist in the cohort. PhysionetMotorImagery
+# is heterogeneous — mostly 160 Hz but a handful of subjects are 128 Hz
+# (Nyquist 64) — so fmax must sit below 64; we use 60. resample=200 still
+# upsamples to REVE's expected rate; only the pre-resample band is clipped.
+DEFAULT_FMAX = 99.5
+FMAX_OVERRIDE = {"PhysionetMotorImagery": 60.0}
+
+
+def _build_paradigm(code):
+    from moabb.paradigms import LeftRightImagery
+
+    return LeftRightImagery(fmin=0.5, fmax=FMAX_OVERRIDE.get(code, DEFAULT_FMAX),
+                            resample=200.0)
 
 
 def _resolve_datasets(paradigm, codes):
@@ -193,6 +322,20 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=0,
                     help="Process at most this many NEW datasets this run (0 = all).")
     ap.add_argument("--batch-size", type=int, default=16)
+    ap.add_argument("--layer-probe", action="store_true",
+                    help="Run the depth-wise label+subject linear probe (FMScope "
+                         "diag #4) over REVE's blocks; surfaces layer_* columns "
+                         "(where the task signal lives vs where the head trades it "
+                         "for identity).")
+    ap.add_argument("--fooof", action="store_true",
+                    help="Run the FOOOF aperiodic-ablation probe (FMScope diag #3); "
+                         "surfaces state_drop/subject_drop — whether the 1/f slope "
+                         "carries the task or the subject identity.")
+    ap.add_argument("--probe-folds", type=int, default=3,
+                    help="CV folds for the layer-probe / FOOOF probes.")
+    ap.add_argument("--probe-max-windows", type=int, default=0,
+                    help="Cap windows per recording in the layer/FOOOF probes "
+                         "(0 = no cap) to bound their cost on large cohorts.")
     ap.add_argument("--cv", default="stratified-kfold",
                     choices=["stratified-kfold", "loso"],
                     help="Erasure label-probe CV. 'loso' = leave-one-subject-out "
@@ -207,7 +350,7 @@ def main() -> None:
 
     from moabb.paradigms import LeftRightImagery
     from emeg_fm.moabb_cohort import build_moabb_cohort
-    from emeg_fm.fmscope_bridge import REVEExtractor
+    from emeg_fm.fmscope_bridge import REVEExtractor, reve_layer_probe, fooof_role
     from fmscope.verdict import audit_cell, AuditConfig
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -247,13 +390,42 @@ def main() -> None:
         rec.update(dataset=code, paradigm=paradigm_name, n_subjects=n_subj,
                    layer=args.layer, model=args.model)
         try:
-            cohort = build_moabb_cohort(dataset=dataset, paradigm=paradigm)
+            cohort = build_moabb_cohort(dataset=dataset,
+                                        paradigm=_build_paradigm(code))
             n_rec = sum(1 for _ in cohort.iter_recordings())
             extractor = REVEExtractor(ch_names=cohort.ch_names, layer=args.layer,
                                       model_id=args.model)
+
+            # Optional FMScope diagnostics #4 (depth probe) and #3 (1/f role).
+            # Both are extra forward passes, so flag-gated; their summaries feed
+            # audit_cell via AuditConfig so the row carries the layer_*/1-f cols.
+            mw = args.probe_max_windows or None
+            layer_summary = oneoverf_summary = None
+            if args.layer_probe:
+                lp = reve_layer_probe(extractor, cohort,
+                                      batch_size=args.batch_size,
+                                      n_folds=args.probe_folds,
+                                      max_windows_per_recording=mw)
+                layer_summary = _summarize_layer_probe(lp)
+                print(f"[probe] {code}: layer label BA "
+                      f"first={ (layer_summary or {}).get('label_ba_first', float('nan')):.3f} "
+                      f"last={ (layer_summary or {}).get('label_ba_last', float('nan')):.3f} "
+                      f"max={ (layer_summary or {}).get('label_ba_max', float('nan')):.3f}",
+                      flush=True)
+            if args.fooof:
+                oneoverf_summary = fooof_role(
+                    extractor, cohort,
+                    sfreq=float(getattr(cohort, "sfreq", 200.0)),
+                    batch_size=args.batch_size, n_folds=args.probe_folds,
+                    max_windows_per_recording=mw)
+                print(f"[fooof] {code}: state_drop="
+                      f"{oneoverf_summary['state_drop_mean']:.3f} subject_drop="
+                      f"{oneoverf_summary['subject_drop_mean']:.3f}", flush=True)
+
             cfg = AuditConfig(cell_name=f"{code}-LR", cell_layout="W,C",
                               batch_size=args.batch_size, device=device,
-                              erasure_cv=args.cv)
+                              erasure_cv=args.cv,
+                              layer_probe=layer_summary, oneoverf=oneoverf_summary)
             row = audit_cell(cohort, extractor, config=cfg)
 
             lf, sf = _g(row, "label_frac"), _g(row, "subject_frac")
@@ -270,6 +442,14 @@ def main() -> None:
                 raw_label_ba=raw, identity_free_label_ba=free,
                 erasure_delta=_g(row, "erasure_label_ba_delta"),
                 erasure_interpretable=row.get("erasure_interpretable"),
+                layer_label_ba_first=_g(row, "layer_label_ba_first"),
+                layer_label_ba_last=_g(row, "layer_label_ba_last"),
+                layer_label_ba_max=_g(row, "layer_label_ba_max"),
+                layer_argmax_depth=_g(row, "layer_argmax_depth"),
+                layer_sign=_layer_sign(layer_summary),
+                state_drop=_g(row, "state_drop"),
+                subject_drop=_g(row, "subject_drop"),
+                oneoverf_role=_oneoverf_role(oneoverf_summary),
                 verdict=_verdict(lf, sf, raw, free), status="ok",
             )
             print(f"[ok] {code}: raw_BA={raw:.3f} identity_free_BA={free:.3f} "

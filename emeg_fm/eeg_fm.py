@@ -150,8 +150,16 @@ class REVEAdapter(HFModelAdapter):
 
         return {"model": model, "pos_bank": pos_bank}
 
-    def extract_features(self, model_dict: dict, inputs: dict,
-                         **kwargs) -> np.ndarray:
+    def _forward_out_layers(self, model_dict: dict, inputs: dict) -> list:
+        """Run REVE once and return its per-layer hidden-state list.
+
+        ``out_layers`` is ``[x_initial, x_after_block_0, ...,
+        x_after_block_{N-1}]`` (length ``n_blocks + 1``) — the residual-stream
+        state at every depth, which REVE exposes natively via
+        ``return_output=True`` (no forward hooks). Both single-layer
+        :meth:`extract_features` and all-layer :meth:`extract_all_layers`
+        share this forward so the channel mapping + autocast stay in one place.
+        """
         try:
             import torch
         except ImportError as e:  # pragma: no cover — caught at load_model
@@ -205,7 +213,11 @@ class REVEAdapter(HFModelAdapter):
             positions = positions.expand(eeg.size(0), -1, -1)
             # return_output=True bypasses the final_layer Identity and gives
             # us the full per-layer list out of TransformerBackbone.
-            out_layers = model(eeg, positions, return_output=True)
+            return model(eeg, positions, return_output=True)
+
+    def extract_features(self, model_dict: dict, inputs: dict,
+                         **kwargs) -> np.ndarray:
+        out_layers = self._forward_out_layers(model_dict, inputs)
 
         # ``out_layers`` is a Python list:
         #   [x_initial, x_after_block_0, x_after_block_1, ..., x_after_block_N]
@@ -236,6 +248,25 @@ class REVEAdapter(HFModelAdapter):
             return tensor.detach().float().cpu().numpy()
         except AttributeError:
             return np.asarray(tensor)
+
+    def extract_all_layers(self, model_dict: dict, inputs: dict,
+                           *, pool_tokens: bool = True) -> np.ndarray:
+        """Return per-layer features for one forward pass.
+
+        Drops the pre-block embedding (``out_layers[0]``) and returns only the
+        ``n_blocks`` transformer-block outputs, matching FMScope's layer-probe
+        depth convention (depth ``k`` = block ``k``). Shape is
+        ``(n_blocks, B, D)`` when ``pool_tokens`` (mean over the patch/token
+        axis) else ``(n_blocks, B, P, D)``.
+        """
+        out_layers = self._forward_out_layers(model_dict, inputs)
+        feats = []
+        for tensor in out_layers[1:]:           # drop embedding; keep blocks
+            arr = tensor.detach().float().cpu().numpy()
+            if pool_tokens and arr.ndim == 3:   # (B, P, D) -> (B, D)
+                arr = arr.mean(axis=1)
+            feats.append(arr)
+        return np.stack(feats, axis=0)
 
     # ---- HFModelAdapter introspection -------------------------------------
 
