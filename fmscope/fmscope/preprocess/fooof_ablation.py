@@ -56,8 +56,13 @@ def _fit_one_channel_recording(
 
     psds = []
     for x in all_epochs_one_ch:
-        freqs, psd = sig.welch(x, fs=sfreq, nperseg=welch_nperseg,
-                               noverlap=welch_nperseg // 2)
+        # Short epochs (e.g. sub-1 s ERP windows) are shorter than the paper's
+        # 512-sample Welch segment; scipy then clamps nperseg to len(x) but
+        # leaves noverlap at 256, raising "noverlap must be less than nperseg".
+        # Derive both from the effective segment length so PSDs stay valid.
+        nperseg = min(welch_nperseg, len(x))
+        freqs, psd = sig.welch(x, fs=sfreq, nperseg=nperseg,
+                               noverlap=nperseg // 2)
         psds.append(psd)
     psd_mean = np.mean(psds, axis=0)
     mask = (freqs >= fit_range[0]) & (freqs <= fit_range[1])

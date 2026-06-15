@@ -197,6 +197,19 @@ class REVEAdapter(HFModelAdapter):
                 eeg = eeg[:, keep, :]
                 electrode_names = [electrode_names[i] for i in keep]
 
+        # REVE patches the time axis with a fixed patch_size (config: 200
+        # samples, overlap 20). The backbone does eeg.unfold(size=patch_size),
+        # which requires T >= patch_size, so windows shorter than one patch
+        # (e.g. sub-1 s ERP epochs at 200 Hz) cannot be tokenised and raise
+        # "maximum size for tensor at dimension 2". Right-pad such windows with
+        # zeros to one full patch: the evoked response sits early in the epoch,
+        # so a short zero tail adds an empty trailing patch rather than
+        # corrupting the signal.
+        patch_size = int(getattr(getattr(model, "config", None),
+                                 "patch_size", 200))
+        if eeg.shape[-1] < patch_size:
+            eeg = torch.nn.functional.pad(eeg, (0, patch_size - eeg.shape[-1]))
+
         # REVE's internal Attention dispatches to FlashAttention which only
         # accepts fp16/bf16. The model itself is fp32-loaded and REVE.forward
         # does `eeg = eeg.float()` early on, so we have to autocast at the op

@@ -228,3 +228,23 @@ def test_oneoverf_role_thresholds():
     assert mlb._oneoverf_role({"state_drop_mean": 0.01,
                                "subject_drop_mean": 0.01}) == ""
     assert mlb._oneoverf_role(None) == ""
+
+
+# --------------------------------------------------------------------------- #
+# Paradigm registry (stdlib-only: never instantiates the moabb paradigms)
+# --------------------------------------------------------------------------- #
+def test_paradigm_registry_matches_argparse_choices():
+    # The registry keys and the --paradigm choices must stay in lockstep so a
+    # selectable paradigm can never lack a factory (or vice versa).
+    assert set(mlb.PARADIGMS) == {"leftright", "erp", "ssvep"}
+    for key, spec in mlb.PARADIGMS.items():
+        assert callable(spec["make"])
+        assert spec["display"] and isinstance(spec["display"], str)
+        assert spec["tag"] and isinstance(spec["tag"], str)
+    tags = [s["tag"] for s in mlb.PARADIGMS.values()]
+    assert len(tags) == len(set(tags))          # cell-name tags are unique
+
+
+def test_build_paradigm_unknown_key_raises():
+    with pytest.raises(KeyError):
+        mlb._build_paradigm("BNCI2014-001", "no-such-paradigm")

@@ -204,14 +204,15 @@ def _render_md(csv_path, md_path, paradigm_name) -> None:
     lines = [
         f"# MOABB identity-free leaderboard — {paradigm_name}",
         "",
-        "Frozen REVE (block 6) features audited with FMScope (arXiv 2606.06647). "
+        f"Frozen REVE (block 6) features audited with FMScope (arXiv 2606.06647) "
+        f"on the {paradigm_name} task contrast. "
         "**Identity-free BA** = task balanced-accuracy after the subject subspace "
         "is erased (LEACE); **Δ = Identity-free − Raw** is the task signal "
         "*recovered* by erasure. A large positive Δ means subject-identity variance "
-        "was masking the left/right axis in MOABB's cross-subject evaluation — the "
+        "was masking the task axis in MOABB's cross-subject evaluation — the "
         "identity trap. `subj_frac` = fraction of representation variance explained "
         "by subject identity; `c̄` = cross-subject direction-consistency of the task "
-        "axis (≈0 ⇒ the left/right axis does not generalize across people).",
+        "axis (≈0 ⇒ the task axis does not generalize across people).",
         "",
         "| Dataset | N subj | Raw BA | Identity-free BA | Δ (lift) | subj_frac | label_frac | c̄ | Verdict |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---|",
@@ -280,14 +281,53 @@ def _render_md(csv_path, md_path, paradigm_name) -> None:
 # (Nyquist 64) — so fmax must sit below 64; we use 60. resample=200 still
 # upsamples to REVE's expected rate; only the pre-resample band is clipped.
 DEFAULT_FMAX = 99.5
-FMAX_OVERRIDE = {"PhysionetMotorImagery": 60.0}
+# fmax must clear the lowest native Nyquist in the cohort (MNE rejects an h_freq
+# at/above Nyquist). PhysionetMotorImagery has 128 Hz subjects (Nyquist 64);
+# MAMEM3 is sampled at 128 Hz (Nyquist 64). Both cap at 60.
+FMAX_OVERRIDE = {"PhysionetMotorImagery": 60.0, "MAMEM3": 60.0}
 
 
-def _build_paradigm(code):
+# --- Paradigm registry ------------------------------------------------------ #
+# Each paradigm is built lazily (moabb imported inside the factory) with REVE's
+# broadband contract (0.5–99.5 Hz, 200 Hz) rather than the paradigm's narrowband
+# BCI default, so the audited features match REVE's training distribution across
+# motor-imagery, ERP and SSVEP alike. ``tag`` is the short cell-name suffix; the
+# label semantics differ per paradigm (left/right vs Target/NonTarget vs flicker
+# frequency) but the audit machinery is label-agnostic, so the same loop serves
+# all three. SSVEP/ERP get the full event set (``n_classes=None``).
+def _make_leftright(fmin, fmax, resample):
     from moabb.paradigms import LeftRightImagery
 
-    return LeftRightImagery(fmin=0.5, fmax=FMAX_OVERRIDE.get(code, DEFAULT_FMAX),
-                            resample=200.0)
+    return LeftRightImagery(fmin=fmin, fmax=fmax, resample=resample)
+
+
+def _make_erp(fmin, fmax, resample):
+    from moabb.paradigms import P300
+
+    return P300(fmin=fmin, fmax=fmax, resample=resample)
+
+
+def _make_ssvep(fmin, fmax, resample):
+    from moabb.paradigms import SSVEP
+
+    # n_classes=2: the FMScope erasure/LP machinery (LEACE + binary LogReg) is
+    # binary by construction (pos/neg counts, predict_proba[:,1], 0.5 threshold).
+    # SSVEP is natively multi-frequency, so restrict to MOABB's first two flicker
+    # classes to get a well-posed binary "frequency A vs B" contrast the audit
+    # can score — rather than diverging from the paper's binary method.
+    return SSVEP(fmin=fmin, fmax=fmax, resample=resample, n_classes=2)
+
+
+PARADIGMS = {
+    "leftright": {"make": _make_leftright, "display": "LeftRightImagery", "tag": "LR"},
+    "erp":       {"make": _make_erp,       "display": "P300",            "tag": "P3"},
+    "ssvep":     {"make": _make_ssvep,     "display": "SSVEP",           "tag": "SSV"},
+}
+
+
+def _build_paradigm(code, paradigm_key="leftright"):
+    return PARADIGMS[paradigm_key]["make"](
+        0.5, FMAX_OVERRIDE.get(code, DEFAULT_FMAX), 200.0)
 
 
 def _resolve_datasets(paradigm, codes):
@@ -312,8 +352,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--layer", type=int, default=6)
     ap.add_argument("--model", default="brain-bzh/reve-base")
-    ap.add_argument("--paradigm", default="leftright", choices=["leftright"],
-                    help="MOABB paradigm to sweep (only leftright for now).")
+    ap.add_argument("--paradigm", default="leftright",
+                    choices=["leftright", "erp", "ssvep"],
+                    help="MOABB paradigm to sweep: leftright (motor imagery, "
+                         "left/right), erp (P300 Target/NonTarget) or ssvep "
+                         "(steady-state, flicker-frequency classes).")
     ap.add_argument("--datasets", nargs="*", default=None,
                     help="Explicit dataset codes to run (default: all compatible).")
     ap.add_argument("--min-subjects", type=int, default=4)
@@ -348,7 +391,6 @@ def main() -> None:
 
     _append_moabb_libs()
 
-    from moabb.paradigms import LeftRightImagery
     from emeg_fm.moabb_cohort import build_moabb_cohort
     from emeg_fm.fmscope_bridge import REVEExtractor, reve_layer_probe, fooof_role
     from fmscope.verdict import audit_cell, AuditConfig
@@ -358,8 +400,12 @@ def main() -> None:
     csv_path = os.path.join(args.out_dir, f"leaderboard_{args.paradigm}{cv_suffix}.csv")
     md_path = os.path.join(args.out_dir, f"leaderboard_{args.paradigm}{cv_suffix}.md")
 
-    paradigm = LeftRightImagery(fmin=0.5, fmax=99.5, resample=200.0)
-    paradigm_name = "LeftRightImagery"
+    spec = PARADIGMS[args.paradigm]
+    # Registry-level paradigm only enumerates compatible datasets; per-dataset
+    # fmax overrides are applied in _build_paradigm at cohort-build time.
+    paradigm = spec["make"](0.5, DEFAULT_FMAX, 200.0)
+    paradigm_name = spec["display"]
+    cell_tag = spec["tag"]
     device = _pick_device()
 
     all_ds = _resolve_datasets(paradigm, set(args.datasets) if args.datasets else None)
@@ -390,8 +436,8 @@ def main() -> None:
         rec.update(dataset=code, paradigm=paradigm_name, n_subjects=n_subj,
                    layer=args.layer, model=args.model)
         try:
-            cohort = build_moabb_cohort(dataset=dataset,
-                                        paradigm=_build_paradigm(code))
+            cohort = build_moabb_cohort(
+                dataset=dataset, paradigm=_build_paradigm(code, args.paradigm))
             n_rec = sum(1 for _ in cohort.iter_recordings())
             extractor = REVEExtractor(ch_names=cohort.ch_names, layer=args.layer,
                                       model_id=args.model)
@@ -422,7 +468,7 @@ def main() -> None:
                       f"{oneoverf_summary['state_drop_mean']:.3f} subject_drop="
                       f"{oneoverf_summary['subject_drop_mean']:.3f}", flush=True)
 
-            cfg = AuditConfig(cell_name=f"{code}-LR", cell_layout="W,C",
+            cfg = AuditConfig(cell_name=f"{code}-{cell_tag}", cell_layout="W,C",
                               batch_size=args.batch_size, device=device,
                               erasure_cv=args.cv,
                               layer_probe=layer_summary, oneoverf=oneoverf_summary)
