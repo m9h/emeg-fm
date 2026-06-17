@@ -66,23 +66,35 @@ def _g(row, k):
         return float("nan")
 
 
-def _verdict(label_frac, subject_frac, raw_ba, free_ba) -> str:
-    """Coarse identity-trap flag for the leaderboard.
+def _verdict(raw_ba, free_ba, interpretable, *, lift_eps=0.02) -> str:
+    """Identity-trap verdict, read from the cross-subject *decode* (the erasure).
 
-    TRAP: subject identity dominates variance and the raw separability does not
-    survive as genuine task skill — i.e. identity carried the score. We call it
-    when subject_frac exceeds label_frac and erasing identity does not lower the
-    task score (free_ba >= raw_ba, the leakage was unhelpful-or-harmful, so the
-    raw number was not real task skill).
+    Coarse flag derived purely from the erasure label-probe, which MUST be the
+    per-trial decode (``--per-trial``); a recording-pooled decode crushes
+    within-class variance and fabricates a lift (the artifact that made every
+    cell read TRAP). The reading:
+
+    - ``no-transfer``  : the raw decode is not interpretable (raw BA below the
+                         gate) — the FM has no above-chance cross-subject task
+                         signal, so there is nothing for identity to trap.
+    - ``TRAP``         : interpretable raw signal AND erasing the subject axis
+                         lifts it by > ``lift_eps`` — identity was masking task
+                         skill that erasure recovers.
+    - ``task-carried`` : interpretable raw signal that erasure does NOT lift —
+                         genuine cross-subject task skill, not identity-reliant.
+
+    ``subject_frac`` (variance dominance) is reported as its own column; it is
+    deliberately NOT part of the verdict, because identity dominating the
+    *variance* does not by itself imply identity carried the *decode*.
     """
     import math
 
-    if any(math.isnan(x) for x in (label_frac, subject_frac, raw_ba, free_ba)):
+    if any(math.isnan(x) for x in (raw_ba, free_ba)):
         return "n/a"
-    if subject_frac > label_frac and free_ba >= raw_ba - 1e-9:
+    if interpretable not in (True, "True", "true", 1, "1"):
+        return "no-transfer"
+    if free_ba - raw_ba > lift_eps:
         return "TRAP"
-    if subject_frac > label_frac:
-        return "identity-reliant"
     return "task-carried"
 
 
@@ -205,14 +217,21 @@ def _render_md(csv_path, md_path, paradigm_name) -> None:
         f"# MOABB identity-free leaderboard — {paradigm_name}",
         "",
         f"Frozen REVE (block 6) features audited with FMScope (arXiv 2606.06647) "
-        f"on the {paradigm_name} task contrast. "
-        "**Identity-free BA** = task balanced-accuracy after the subject subspace "
-        "is erased (LEACE); **Δ = Identity-free − Raw** is the task signal "
-        "*recovered* by erasure. A large positive Δ means subject-identity variance "
-        "was masking the task axis in MOABB's cross-subject evaluation — the "
-        "identity trap. `subj_frac` = fraction of representation variance explained "
-        "by subject identity; `c̄` = cross-subject direction-consistency of the task "
-        "axis (≈0 ⇒ the task axis does not generalize across people).",
+        f"on the {paradigm_name} task contrast. **Raw BA** / **Identity-free BA** "
+        "are the cross-subject task balanced-accuracy from the **per-trial** "
+        "erasure decode (each trial its own recording, StratifiedGroupKFold "
+        "grouped by subject; `n ≫ p`) before / after the subject subspace is "
+        "erased (LEACE); **Δ = Identity-free − Raw**. NB: a recording-pooled "
+        "decode crushes within-class variance and fabricates a large Δ — the "
+        "artifact that made every cell read TRAP — so these numbers are per-trial. "
+        "`subj_frac` = fraction of representation variance explained by subject "
+        "identity (reported, but NOT part of the verdict); `c̄` = cross-subject "
+        "direction-consistency of the task axis (≈0 ⇒ no axis that generalizes "
+        "across people). **Verdict:** `no-transfer` = raw BA below the "
+        "interpretability gate (no above-chance cross-subject task signal — "
+        "nothing to trap); `TRAP` = interpretable raw signal that erasure lifts "
+        "(> 0.02); `task-carried` = interpretable signal erasure does not lift "
+        "(genuine, identity-robust task skill).",
         "",
         "| Dataset | N subj | Raw BA | Identity-free BA | Δ (lift) | subj_frac | label_frac | c̄ | Verdict |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---|",
@@ -385,6 +404,14 @@ def main() -> None:
                          "(strictest cross-subject split); writes a separate "
                          "leaderboard_<paradigm>_loso.csv so it never clobbers the "
                          "main StratifiedGroupKFold leaderboard.")
+    ap.add_argument("--per-trial", action="store_true",
+                    help="Decode the subject-axis erasure PER TRIAL (each window "
+                         "its own recording, grouped by subject) instead of the "
+                         "default per-(subject,class) recording pooling. Pooling "
+                         "crushes within-class variance and fabricates an "
+                         "identity-free lift on high-dim FM features (confirmed on "
+                         "BNCI2014_001 + ERP CORE); per-trial is n>>p and honest. "
+                         "Writes a separate leaderboard_<paradigm>_pertrial.csv.")
     ap.add_argument("--out-dir",
                     default=os.path.expanduser("~/dev/emeg-fm/results/moabb_fmscope"))
     args = ap.parse_args()
@@ -397,6 +424,8 @@ def main() -> None:
 
     os.makedirs(args.out_dir, exist_ok=True)
     cv_suffix = "_loso" if args.cv == "loso" else ""
+    if args.per_trial:
+        cv_suffix += "_pertrial"
     csv_path = os.path.join(args.out_dir, f"leaderboard_{args.paradigm}{cv_suffix}.csv")
     md_path = os.path.join(args.out_dir, f"leaderboard_{args.paradigm}{cv_suffix}.md")
 
@@ -471,6 +500,7 @@ def main() -> None:
             cfg = AuditConfig(cell_name=f"{code}-{cell_tag}", cell_layout="W,C",
                               batch_size=args.batch_size, device=device,
                               erasure_cv=args.cv,
+                              erasure_per_trial=args.per_trial,
                               layer_probe=layer_summary, oneoverf=oneoverf_summary)
             row = audit_cell(cohort, extractor, config=cfg)
 
@@ -496,7 +526,8 @@ def main() -> None:
                 state_drop=_g(row, "state_drop"),
                 subject_drop=_g(row, "subject_drop"),
                 oneoverf_role=_oneoverf_role(oneoverf_summary),
-                verdict=_verdict(lf, sf, raw, free), status="ok",
+                verdict=_verdict(raw, free, row.get("erasure_interpretable")),
+                status="ok",
             )
             print(f"[ok] {code}: raw_BA={raw:.3f} identity_free_BA={free:.3f} "
                   f"subj_frac={sf:.3f} verdict={rec['verdict']}", flush=True)

@@ -13,7 +13,6 @@ from fmscope.diagnostics.erasure import (
     subspace_overlap,
     whiten,
 )
-from fmscope.diagnostics.layer_probe import layer_probe
 from fmscope.diagnostics.null_control import null_control
 from fmscope.diagnostics.variance import (
     cluster_bootstrap,
@@ -48,3 +47,13 @@ __all__ = [
     # layer_probe.py
     "layer_probe",
 ]
+
+
+def __getattr__(name):
+    # layer_probe pulls torch; import it lazily so the pure-sklearn diagnostics
+    # (erasure, variance, null_control) stay importable without a torch install.
+    if name == "layer_probe":
+        from fmscope.diagnostics.layer_probe import layer_probe
+
+        return layer_probe
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

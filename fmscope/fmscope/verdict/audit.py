@@ -71,6 +71,15 @@ class AuditConfig:
         ``erasure_interpretable = False``. Default 0.55.
     erasure_label_seeds : tuple
         Seeds for the erasure label probe. Default ``(42, 123, 2024)``.
+    erasure_per_trial : bool
+        When True, the subject-axis erasure decodes **per trial** — each window
+        is its own recording, grouped by subject — instead of the default,
+        which pools each contiguous ``(subject, label)`` run into one recording.
+        Recording-level pooling averages many trials into one prediction and
+        crushes within-class variance, which inflates the erased score and can
+        fabricate an identity-free "lift" on high-dim FM features (confirmed on
+        MOABB + ERP CORE). Per-trial decoding is ``n ≫ p`` and reflects genuine
+        cross-subject generalization. Default False (back-compat).
     layer_probe : dict or None
         Optional pre-computed layer-probe summary
         (``label_ba_first`` / ``label_ba_last`` / ``label_ba_max`` /
@@ -90,6 +99,7 @@ class AuditConfig:
     erasure_gate: float = 0.55
     erasure_label_seeds: tuple = DEFAULT_LABEL_SEEDS
     erasure_cv: str = "stratified-kfold"  # or "loso" (leave-one-subject-out)
+    erasure_per_trial: bool = False  # per-trial (n≫p) vs pooled-recording erasure
     layer_probe: Optional[dict] = None
     oneoverf: Optional[dict] = None
 
@@ -135,6 +145,21 @@ def _extract_features(
     return feats, np.asarray(sids), np.asarray(labels), {
         "n_recordings": n_rec, "n_windows": n_win, "elapsed_s": elapsed,
     }
+
+
+def _per_trial_grouping(
+    sids: np.ndarray, labels: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Recording grouping that makes each window its own recording.
+
+    Returns ``(window_recording, rec_labels, rec_pids)`` for
+    :func:`fmscope.diagnostics.erasure.subject_axis_erasure` such that the
+    label CV decodes per trial (``n ≫ p``), grouped by subject, with no
+    prediction pooling — avoiding the recording-pool variance crush that
+    inflates the erased score on high-dim FM features.
+    """
+    labels = np.asarray(labels)
+    return np.arange(len(labels)), labels, np.asarray(sids)
 
 
 def _recording_mean_pool(
@@ -220,11 +245,16 @@ def audit_cell(
     # 5) Subject-axis linear erasure (LEACE). Erase the linear subject
     #    axis, then re-probe identity (collapses toward chance) and the
     #    label (Δ_erase = post − pre). Skipped when run_erasure is False.
+    er_grouping = (
+        dict(zip(("window_recording", "rec_labels", "rec_pids"),
+                 _per_trial_grouping(sids_w, labels_w)))
+        if config.erasure_per_trial else {})
     er = (subject_axis_erasure(
               feats_w, sids_w, labels_w,
               gate=config.erasure_gate,
               label_seeds=config.erasure_label_seeds,
               cv=config.erasure_cv,
+              **er_grouping,
           ) if config.run_erasure else None)
 
     # 6) Numeric diagnostic row.
