@@ -60,6 +60,7 @@ def build_moabb_cohort(
     fmin: float = 0.5,
     fmax: float = 99.5,
     clamp: float = 15.0,
+    normalize: bool = True,
 ):
     """Build a FMScope ``InMemoryCohort`` from any MOABB motor-imagery dataset.
 
@@ -138,15 +139,17 @@ def build_moabb_cohort(
             continue
         # Frozen per-subject scaler over all of this subject's trials (stands in
         # for neuralset's whole-recording StandardScaler) so cross-trial
-        # amplitude survives and the clamp is meaningful.
-        norm = ReveInputNorm(sfreq_out=sfreq_out, clamp=clamp).fit(
-            X[s_mask], sfreq_in=sfreq_out
-        )
+        # amplitude survives and the clamp is meaningful. normalize=False emits
+        # RAW windows instead, for FMs with their own input contract (e.g.
+        # LuMamba: resample-256 + per-channel IQR, applied in its extractor).
+        norm = (ReveInputNorm(sfreq_out=sfreq_out, clamp=clamp).fit(
+            X[s_mask], sfreq_in=sfreq_out) if normalize else None)
         for lbl in range(len(classes)):
             idx = np.where(s_mask & (labels == lbl))[0]
             if idx.size == 0:
                 continue
-            windows = norm.transform(X[idx], sfreq_in=sfreq_out).astype(np.float32)
+            windows = (norm.transform(X[idx], sfreq_in=sfreq_out)
+                       if normalize else X[idx]).astype(np.float32)
             recordings.append((int(s), int(lbl), windows))
 
     cohort = InMemoryCohort(recordings, n_channels=C, sfreq=sfreq_out)
