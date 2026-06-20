@@ -6,10 +6,11 @@
 #SBATCH --output=%x-%j.out
 # No --time: gx10-dgx-spark single-user / infinite walltime.
 #
-# Wang TCM per-trial identity-trap sweep over all LeftRightImagery MOABB datasets,
-# in the Docker NGC 26.05 container (moabb fork + emeg-fm + moabblibs on /mnt/t9).
-# Pure-CPU (SVD + sklearn erasure); no GPU. Usage:
-#   sbatch scripts/moabb_tcm_pertrial.sbatch [--datasets BNCI2014_001 ...]
+# Wang TCM per-trial identity-trap sweep over a MOABB paradigm's datasets, in the
+# Docker NGC 26.05 container (moabb fork + emeg-fm + moabblibs on /mnt/t9).
+# Pure-CPU (SVD + sklearn erasure); no GPU. Output CSV is paradigm-specific
+# (tcm_pertrial.csv for MI; tcm_pertrial_<paradigm>.csv for erp/ssvep). Usage:
+#   sbatch scripts/moabb_tcm_pertrial.sbatch [--paradigm erp|ssvep] [--datasets ...]
 set -euo pipefail
 cd "$HOME/dev/emeg-fm"
 

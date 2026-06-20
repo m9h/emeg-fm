@@ -1,0 +1,27 @@
+dataset,n_subjects,n_trials,n_channels,Ks,Kt,n_feat,pooled_raw,pooled_erased,pooled_delta,pertrial_raw,pertrial_erased,pertrial_delta,subj_ba_pre,subj_ba_post,subj_chance,interpretable,degenerate,verdict,status
+BNCI2014-009,10,17280,16,3,34,102,0.95,0.95,0.0,0.673,0.6678,-0.0052,0.232,0.114,0.1,True,False,task-carried,ok
+BrainInvaders2014b,38,9180,32,3,3,9,0.8246,0.5,-0.3246,0.5495,0.5,-0.0495,0.0666,0.035,0.0263,False,True,no-transfer,ok
+BrainInvaders2015a,43,71484,32,3,2,6,0.5078,0.5,-0.0078,0.5005,0.5,-0.0005,0.0907,0.0263,0.0233,False,True,no-transfer,ok
+BrainInvaders2015b,44,116098,32,2,2,4,0.5341,0.5,-0.0341,0.5017,0.5002,-0.0016,0.0293,0.0266,0.0227,False,True,no-transfer,ok
+BNCI2014-008,8,33600,8,3,54,162,0.875,0.8958,0.0208,0.6011,0.6012,0.0001,0.1862,0.16,0.125,True,False,task-carried,ok
+BNCI2015-003,10,25200,8,2,39,78,0.5667,0.5833,0.0167,0.5222,0.5184,-0.0038,0.17,0.136,0.1,False,False,no-transfer,ok
+Cattan2019-VR,21,15120,16,7,150,1050,0.7063,0.6349,-0.0714,0.5758,0.5708,-0.005,0.1,0.0581,0.0476,True,False,task-carried,ok
+DemonsP300,60,56540,8,4,96,384,0.6917,0.5778,-0.1139,0.5382,0.5164,-0.0218,0.039,0.0278,0.0167,False,False,no-transfer,ok
+ErpCore2021-ERN,40,15972,30,8,75,600,0.9792,0.9458,-0.0333,0.7966,0.6968,-0.0998,0.286,0.0258,0.025,True,False,task-carried,ok
+ErpCore2021-LRP,40,15972,30,5,59,295,0.9583,1.0,0.0417,0.6984,0.6658,-0.0326,0.2913,0.027,0.025,True,False,task-carried,ok
+ErpCore2021-MMN,40,39832,30,9,93,837,0.85,0.825,-0.025,0.5677,0.5487,-0.019,0.073,0.034,0.025,True,False,task-carried,ok
+ErpCore2021-N170,40,12800,30,5,54,270,0.8375,0.9542,0.1167,0.6865,0.6244,-0.062,0.5767,0.022,0.025,True,False,task-carried,ok
+ErpCore2021-N2pc,40,12807,30,6,59,354,0.8375,0.9792,0.1417,0.6051,0.5871,-0.018,0.4713,0.024,0.025,True,False,task-carried,ok
+ErpCore2021-N400,40,4800,30,6,56,336,0.8708,0.9875,0.1167,0.6453,0.6222,-0.0231,0.505,0.0015,0.025,True,False,task-carried,ok
+ErpCore2021-P3,40,8000,30,5,35,175,0.8583,0.9208,0.0625,0.6762,0.6194,-0.0568,0.4672,0.0203,0.025,True,False,task-carried,ok
+Huebner2017,13,162757,31,8,119,952,0.9872,0.9872,0.0,0.8133,0.8097,-0.0036,0.1969,0.0954,0.0769,True,False,task-carried,ok
+Huebner2018,12,171286,31,2,50,100,0.9028,0.9444,0.0417,0.5487,0.5453,-0.0034,0.1208,0.1133,0.0833,False,False,no-transfer,ok
+Kojima2024A,11,11720,64,4,110,440,0.9091,0.9242,0.0152,0.6008,0.5928,-0.008,0.1545,0.0955,0.0909,True,False,task-carried,ok
+BrainInvaders2012,24,18376,16,9,33,297,0.9167,0.9306,0.0139,0.6902,0.6524,-0.0378,0.1,0.0575,0.0417,True,False,task-carried,ok
+BrainInvaders2013a,,,,,,,,,,,,,,,,,,,FAILED: ConnectionError
+BrainInvaders2014a,24,20184,16,4,2,8,0.6111,0.5,-0.1111,0.5049,0.5,-0.0049,0.1729,0.0842,0.0417,False,True,no-transfer,ok
+EPFLP300,,,,,,,,,,,,,,,,,,,FAILED: ConnectionError
+Kojima2024B,,,,,,,,,,,,,,,,,,,FAILED: ValueError
+Lee2019-ERP,24,198720,62,8,113,904,0.9792,0.9792,0.0,0.7602,0.76,-0.0003,0.1175,0.0583,0.0417,True,False,task-carried,ok
+RomaniBF2025ERP,,,,,,,,,,,,,,,,,,,FAILED: ValueError
+Sosulski2019,,,,,,,,,,,,,,,,,,,FAILED: BadZipFile
