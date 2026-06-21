@@ -344,9 +344,25 @@ PARADIGMS = {
 }
 
 
-def _build_paradigm(code, paradigm_key="leftright"):
-    return PARADIGMS[paradigm_key]["make"](
-        0.5, FMAX_OVERRIDE.get(code, DEFAULT_FMAX), 200.0)
+def _build_paradigm(code, paradigm_key="leftright", fmax=None):
+    if fmax is None:
+        fmax = FMAX_OVERRIDE.get(code, DEFAULT_FMAX)
+    return PARADIGMS[paradigm_key]["make"](0.5, fmax, 200.0)
+
+
+def _nyquist_from_error(err):
+    """The native Nyquist MNE rejected our fmax against, or None if unrelated.
+    The static FMAX_OVERRIDE can't enumerate every low-rate ERP/SSVEP cohort
+    (e.g. BrainInvaders2012 @128 Hz); recover it from MNE's message and retry."""
+    import re
+    m = re.search(r"Nyquist frequency\s*([0-9.]+)", str(err))
+    return float(m.group(1)) if m else None
+
+
+def _clamp_fmax_below(nyquist, margin=4.0):
+    """Largest broadband fmax that clears a native Nyquist (MNE needs strict <);
+    margin=4 maps a 64 Hz Nyquist -> 60 Hz, matching the static override."""
+    return float(max(1.0, nyquist - margin))
 
 
 def _resolve_datasets(paradigm, codes):
@@ -381,6 +397,9 @@ def main() -> None:
     ap.add_argument("--min-subjects", type=int, default=4)
     ap.add_argument("--max-subjects", type=int, default=0,
                     help="Skip datasets with more subjects than this (0 = no cap).")
+    ap.add_argument("--subject-cap", type=int, default=0,
+                    help="Cap subjects LOADED per dataset (0=all); bounds peak RAM "
+                         "on giant cohorts (Lee2019_ERP OOM'd the TCM run at 54).")
     ap.add_argument("--limit", type=int, default=0,
                     help="Process at most this many NEW datasets this run (0 = all).")
     ap.add_argument("--batch-size", type=int, default=16)
@@ -465,8 +484,29 @@ def main() -> None:
         rec.update(dataset=code, paradigm=paradigm_name, n_subjects=n_subj,
                    layer=args.layer, model=args.model)
         try:
-            cohort = build_moabb_cohort(
-                dataset=dataset, paradigm=_build_paradigm(code, args.paradigm))
+            # Subject cap (bounds peak RAM; loading every subject of a giant
+            # cohort OOM-killed the TCM ERP run on Lee2019_ERP at 54 subjects;
+            # an OOM SIGKILL is uncatchable, so it must be prevented, not caught).
+            subjects = None
+            if args.subject_cap and n_subj > args.subject_cap:
+                subjects = list(dataset.subject_list)[:args.subject_cap]
+                print(f"[{code}] subject-cap: loading {args.subject_cap}/{n_subj} "
+                      f"subjects", flush=True)
+            try:
+                cohort = build_moabb_cohort(
+                    dataset=dataset, paradigm=_build_paradigm(code, args.paradigm),
+                    subjects=subjects)
+            except ValueError as exc:
+                nyq = _nyquist_from_error(exc)
+                if nyq is None:
+                    raise
+                fmax = _clamp_fmax_below(nyq)
+                print(f"[{code}] native Nyquist {nyq} < broadband fmax; retry at "
+                      f"fmax={fmax}", flush=True)
+                cohort = build_moabb_cohort(
+                    dataset=dataset,
+                    paradigm=_build_paradigm(code, args.paradigm, fmax=fmax),
+                    subjects=subjects)
             n_rec = sum(1 for _ in cohort.iter_recordings())
             extractor = REVEExtractor(ch_names=cohort.ch_names, layer=args.layer,
                                       model_id=args.model)
