@@ -75,7 +75,10 @@ def dwi_scalar_features(sub: str, dwi_root: str = _DWI_SCALARS):
         return None
     FA = np.asarray(nib.load(fa).dataobj, float)
     MD = np.asarray(nib.load(md).dataobj, float)
-    brain, wm = FA > 0, FA > 0.2
+    brain = np.isfinite(FA) & (FA > 0) & (FA <= 1)        # exclude edge NaN/>1 (degenerate-tensor voxels)
+    FA = np.clip(np.nan_to_num(FA), 0, 1)
+    MD = np.nan_to_num(MD)
+    wm = brain & (FA > 0.2)
     return np.array([FA[brain].mean(), FA[brain].std(), FA[wm].mean() if wm.any() else 0.0,
                      MD[brain].mean(), MD[wm].mean() if wm.any() else 0.0])
 

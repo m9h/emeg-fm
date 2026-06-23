@@ -8,9 +8,11 @@ mrtrix `.b` / mask filenames are best-effort against the verified qsiprep layout
 `--dry-run` on the first pass and adjust if a subject's files differ.
 """
 import argparse
+import functools
 import glob
 import os
 import subprocess
+from concurrent.futures import ProcessPoolExecutor
 
 QSIPREP = "/data/raw/hbn-qsiprep"
 OUT = "/data/derivatives/volume_conduction/dwi_scalars"
@@ -28,7 +30,7 @@ def find_inputs(subdir: str):
     return dwi, grad, mask
 
 
-def run(subdir: str, dry: bool) -> str:
+def run(subdir: str, dry: bool = False, nthreads: int = 2) -> str:
     sub = os.path.basename(subdir)
     inp = find_inputs(subdir)
     if not inp or not inp[1]:
@@ -42,27 +44,43 @@ def run(subdir: str, dry: bool) -> str:
         return f"[dry {sub}] dwi={os.path.basename(dwi)} grad={'y' if grad else 'NO'} mask={'y' if mask else 'no'}"
     os.makedirs(od, exist_ok=True)
     tn = f"{od}/tensor.mif"
-    cmd = ["dwi2tensor", dwi, "-grad", grad, tn, "-force"] + (["-mask", mask] if mask else [])
-    subprocess.run(cmd, check=True)
-    subprocess.run(["tensor2metric", tn, "-fa", fa, "-adc", md, "-force"], check=True)
-    os.remove(tn)
+    q = ["-quiet", "-nthreads", str(nthreads)]
+    try:
+        subprocess.run(["dwi2tensor", dwi, "-grad", grad, tn, "-force", *q]
+                       + (["-mask", mask] if mask else []), check=True)
+        subprocess.run(["tensor2metric", tn, "-fa", fa, "-adc", md, "-force", *q], check=True)
+    finally:
+        if os.path.exists(tn):
+            os.remove(tn)
     return f"[ok {sub}]"
+
+
+def _safe(subdir, dry, nthreads):
+    try:
+        return run(subdir, dry, nthreads)
+    except subprocess.CalledProcessError as e:
+        return f"[FAIL {os.path.basename(subdir)}] {e}"
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--jobs", type=int, default=8, help="parallel subjects (each mrtrix uses --nthreads)")
+    ap.add_argument("--nthreads", type=int, default=2, help="mrtrix threads per subject")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     subs = sorted(s for s in glob.glob(f"{QSIPREP}/sub-*") if os.path.isdir(s))   # skip .html report files
     if a.limit:
         subs = subs[: a.limit]
-    print(f"{len(subs)} qsiprep subjects -> {OUT}")
-    for s in subs:
-        try:
-            print(run(s, a.dry_run), flush=True)
-        except subprocess.CalledProcessError as e:
-            print(f"[FAIL {os.path.basename(s)}] {e}", flush=True)
+    print(f"{len(subs)} qsiprep subjects -> {OUT}  (jobs={a.jobs}, nthreads={a.nthreads})", flush=True)
+    work = functools.partial(_safe, dry=a.dry_run, nthreads=a.nthreads)
+    done = 0
+    with ProcessPoolExecutor(max_workers=max(1, a.jobs)) as ex:
+        for i, msg in enumerate(ex.map(work, subs)):
+            done += 1
+            if msg.startswith(("[ok", "[FAIL")) or (i + 1) % 50 == 0:
+                print(f"  ({done}/{len(subs)}) {msg}", flush=True)
+    print(f">>> done: {done} subjects processed", flush=True)
 
 
 if __name__ == "__main__":
