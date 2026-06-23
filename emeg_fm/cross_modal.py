@@ -38,6 +38,30 @@ def cross_modal_spectrum(Xa: np.ndarray, Xb: np.ndarray, reg: float = 1e-3,
     return np.clip(np.sort(np.linalg.svd(M, compute_uv=False))[::-1], 0.0, 1.0)
 
 
+def permutation_null(Xa: np.ndarray, Xb: np.ndarray, n_perm: int = 1000, reg: float = 1e-3,
+                     covariate: np.ndarray | None = None, seed: int = 0) -> dict:
+    """Permutation null for the **top** canonical correlation, needed because CCA at high d is upward
+    biased: with d≈n even unrelated modalities show large ρ₁, so the absolute value is uninterpretable
+    without a null. Shuffle the Xa↔Xb subject pairing `n_perm` times and recompute ρ₁.
+
+    Whitening is row-order invariant (a permutation leaves the covariance unchanged), so we whiten once
+    and only permute rows of the whitened Xb — the null costs one SVD of the cross-covariance per draw.
+    `covariate` (e.g. age) is residualized from both *before* permuting, matching the observed statistic.
+    Returns observed ρ₁, the null mean / 95th pct (the bias floor), and a one-sided p-value."""
+    Xa, Xb = np.asarray(Xa, float), np.asarray(Xb, float)
+    if covariate is not None:
+        Xa, Xb = _residualize(Xa, covariate), _residualize(Xb, covariate)
+    n = len(Xa)
+    Wa, Wb = _whiten(Xa, reg), _whiten(Xb, reg)
+    top = lambda B: float(np.linalg.svd(Wa.T @ B / n, compute_uv=False)[0])
+    obs = top(Wb)
+    rng = np.random.default_rng(seed)
+    null = np.array([top(Wb[rng.permutation(n)]) for _ in range(n_perm)])
+    return {"observed": obs, "null_mean": float(null.mean()),
+            "null_p95": float(np.percentile(null, 95)),
+            "p_value": float((1 + np.sum(null >= obs)) / (1 + n_perm)), "n_perm": n_perm}
+
+
 def shared_subspace_summary(rho: np.ndarray, thresh: float = 0.5) -> dict:
     rho = np.asarray(rho, float)
     pr = (rho.sum() ** 2) / (np.sum(rho ** 2) + 1e-30) if rho.size else 0.0

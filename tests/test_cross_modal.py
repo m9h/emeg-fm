@@ -5,7 +5,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "emeg_fm"))
-from cross_modal import cross_modal_spectrum, shared_subspace_summary   # noqa: E402
+from cross_modal import cross_modal_spectrum, shared_subspace_summary, permutation_null   # noqa: E402
 
 
 def _shared(n, da, db, strengths, seed, latent=None):
@@ -41,8 +41,27 @@ def test_residualize_age_removes_shared_age_mode():
     assert shared_subspace_summary(cross_modal_spectrum(Xa, Xb, covariate=age), 0.5)["n_strong"] == 2
 
 
+def test_permutation_null_significant_when_coupled():
+    # high-d so ρ₁ is upward biased (null mean well above 0) — the null must still flag real coupling
+    Xa, Xb = _shared(300, 60, 55, [4, 4, 0, 0], seed=5)
+    r = permutation_null(Xa, Xb, n_perm=200, seed=0)
+    assert r["null_mean"] > 0.3                       # confirms the high-d upward bias is present
+    assert r["observed"] > r["null_p95"]              # real coupling beats the bias floor
+    assert r["p_value"] < 0.01
+
+
+def test_permutation_null_not_significant_when_independent():
+    rng = np.random.default_rng(6)
+    Xa, Xb = rng.standard_normal((300, 60)), rng.standard_normal((300, 55))
+    r = permutation_null(Xa, Xb, n_perm=200, seed=0)
+    assert r["observed"] <= r["null_p95"] + 1e-9      # observed sits inside the null
+    assert r["p_value"] > 0.05
+
+
 if __name__ == "__main__":
     for _fn in (test_recovers_shared_dimension, test_independent_modalities_low,
-                test_residualize_age_removes_shared_age_mode):
+                test_residualize_age_removes_shared_age_mode,
+                test_permutation_null_significant_when_coupled,
+                test_permutation_null_not_significant_when_independent):
         _fn(); print(f"PASS  {_fn.__name__}")
     print("all cross_modal tests passed")
