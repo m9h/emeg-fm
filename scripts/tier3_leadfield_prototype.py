@@ -1,16 +1,21 @@
 """Tier-3 forward-model prototype (5 subjects) — the CAUSAL volume-conduction test.
 
-Per subject: CHARM head segmentation (raw T1) → anisotropic conductivity from DWI tensors → SimNIBS
-EEG leadfield (EGI-128 electrodes). Comparing the lead fields across ages shows how the conduction
-operator itself changes with age — the mechanism the tier-1 correlational redundancy can only hint at.
+Per subject: CHARM head segmentation (raw T1) → SimNIBS EEG leadfield. Comparing the lead fields
+across ages shows how the conduction operator itself changes with age — the mechanism the tier-1
+correlational redundancy can only hint at.
 
-STAGED — requires SimNIBS installed (it is a source checkout only right now):
-    pip install <simnibs-checkout>     # or the official installer; bundles charm/SAMSEG + atlas
-    python scripts/tier3_leadfield_prototype.py --dry-run
-    python scripts/tier3_leadfield_prototype.py        # ~1-3 h CHARM + 0.5-2 h leadfield per subject
+    python scripts/tier3_leadfield_prototype.py --dry-run     # check input discovery first
+    python scripts/tier3_leadfield_prototype.py [--limit N]   # ~1-3 h CHARM + 0.5-2 h leadfield / subj
 
-CHARM and dwi2cond are stable SimNIBS 4.x CLIs and are wired here; the leadfield call is sketched
-against the v4 Python API and must be confirmed on the installed version (marked CONFIRM below).
+SimNIBS 4.1.0 is installed in the conda env below but its petsc4py needs libstdc++ preloaded (the
+shipped libpetsc.so does not list it as NEEDED), and the bin/ console-scripts don't set that up — so
+every SimNIBS call here goes through the env's python with LD_PRELOAD/LD_LIBRARY_PATH set
+(`_simnibs_env`), invoking CHARM as a module (`-m simnibs.cli.charm`). See docs/simnibs_install_notes.md.
+
+Conductivity is **scalar (isotropic)**: `dwi2cond` is not packaged in this aarch64 build, so DWI
+anisotropy ('vn') is a documented follow-up. The age-varying head *geometry* from CHARM is the
+first-order conduction effect and is fully captured. The EEG cap is SimNIBS's bundled 10-10 montage;
+an EGI-128 cap built from emeg_fm/montage.py (GSN-HydroCel-128) is the matching follow-up.
 """
 import argparse
 import glob
@@ -21,9 +26,40 @@ BIDS = "/data/raw/hbn-bids"
 QSIPREP = "/data/raw/hbn-qsiprep"
 OUT = "/data/derivatives/volume_conduction/forward"
 
+# SimNIBS 4.1.0 install (conda env) + the libstdc++ preload its petsc4py requires.
+SIMNIBS_ENV = "/home/mhough/miniforge3/envs/simnibs_test_v11"
+SIMNIBS_PY = f"{SIMNIBS_ENV}/bin/python"
+# Prototype EEG cap = SimNIBS's bundled 10-10 montage; swap for an EGI-128 cap (emeg_fm/montage.py).
+EEG_CAP = (f"{SIMNIBS_ENV}/lib/python3.12/site-packages/simnibs/resources/"
+           "ElectrodeCaps_MNI/EEG10-10_UI_Jurak_2007.csv")
+
 # verified EEG∩T1∩DWI∩age (see docs/volume_conduction_plan.md)
 SUBJECTS = ["sub-NDARAA948VFH", "sub-NDARAB458VK9", "sub-NDARAC349YUC",
             "sub-NDARAC853DTE", "sub-NDARAD224CRB"]
+
+# Run the leadfield in the env python (TDCSLEADFIELD = EEG forward by reciprocity); argv = m2m,fem,cap.
+_LEADFIELD = """
+import sys
+from simnibs import sim_struct, run_simnibs
+m2m, pathfem, cap = sys.argv[1], sys.argv[2], sys.argv[3]
+lf = sim_struct.TDCSLEADFIELD()
+lf.subpath = m2m
+lf.pathfem = pathfem
+lf.eeg_cap = cap
+lf.field = "E"
+lf.anisotropy_type = "scalar"   # 'vn' (DWI-anisotropic) needs dwi2cond, absent in this build
+run_simnibs(lf)
+"""
+
+
+def _simnibs_env() -> dict:
+    """os.environ + the LD_PRELOAD/LD_LIBRARY_PATH that make SimNIBS's petsc4py importable."""
+    e = dict(os.environ)
+    lib = f"{SIMNIBS_ENV}/lib"
+    pre = f"{lib}/libstdc++.so.6"
+    e["LD_PRELOAD"] = f"{pre} {e['LD_PRELOAD']}" if e.get("LD_PRELOAD") else pre
+    e["LD_LIBRARY_PATH"] = f"{lib}:{e['LD_LIBRARY_PATH']}" if e.get("LD_LIBRARY_PATH") else lib
+    return e
 
 
 def inputs(sub: str):
@@ -34,9 +70,11 @@ def inputs(sub: str):
 
 
 def have_simnibs() -> bool:
+    """SimNIBS imports only under the preload env, and from the env's own python — check exactly that."""
     try:
-        import simnibs  # noqa: F401
-        return True
+        r = subprocess.run([SIMNIBS_PY, "-c", "import simnibs"],
+                           env=_simnibs_env(), capture_output=True, timeout=180)
+        return r.returncode == 0
     except Exception:
         return False
 
@@ -45,37 +83,37 @@ def run_subject(sub: str, dry: bool):
     t1, dwi = inputs(sub)
     if not t1:
         print(f"[skip {sub}] no raw T1"); return
-    m2m = f"{OUT}/{sub}/m2m_{sub.replace('sub-', '')}"
+    subID = sub.replace("sub-", "")
+    subdir = f"{OUT}/{sub}"
+    m2m = f"{subdir}/m2m_{subID}"
+    fem = f"{subdir}/leadfield"
     if dry:
         print(f"[dry {sub}] T1={os.path.basename(t1)} dwi={'y' if dwi else 'no'} -> {m2m}"); return
-    os.makedirs(os.path.dirname(m2m), exist_ok=True)
-    # 1) head segmentation + mesh (SAMSEG/CHARM) — stable CLI
-    subprocess.run(["charm", sub.replace("sub-", ""), t1], cwd=f"{OUT}/{sub}", check=True)
-    # 2) anisotropic conductivity from DWI tensors — stable CLI (registers DTI to the mesh)
-    if dwi:
-        tensor = f"{OUT}/{sub}/dti_tensor.nii.gz"
-        b = dwi[: -len(".nii.gz")] + ".b"
-        subprocess.run(["dwi2tensor", dwi, "-grad", b, tensor, "-force"], check=True)
-        subprocess.run(["dwi2cond", f"--aniso", sub.replace("sub-", ""), tensor], cwd=f"{OUT}/{sub}", check=True)
-    # 3) EEG leadfield — CONFIRM against the installed SimNIBS version's API
-    #    from simnibs import sim_struct, run_simnibs
-    #    lf = sim_struct.TDCSLEADFIELD(); lf.subpath = m2m
-    #    lf.eeg_cap = <EGI-128 cap csv from emeg_fm/montage.py positions>
-    #    lf.pathfem = f"{OUT}/{sub}/leadfield"; lf.anisotropy_type = "vn" if dwi else "scalar"
-    #    run_simnibs(lf)
-    print(f"[ok {sub}] CHARM (+ dwi2cond) done; wire the leadfield call (see CONFIRM block)", flush=True)
+    os.makedirs(subdir, exist_ok=True)
+    env = _simnibs_env()
+    # 1) head segmentation + mesh (CHARM/SAMSEG) — idempotent: skip if the m2m mesh already exists
+    if os.path.exists(f"{m2m}/{subID}.msh"):
+        print(f"[skip charm {sub}] {m2m} present", flush=True)
+    else:
+        subprocess.run([SIMNIBS_PY, "-m", "simnibs.cli.charm", subID, t1],
+                       cwd=subdir, env=env, check=True)
+    # 2) EEG leadfield (scalar conductivity; see module docstring for the DWI-anisotropy follow-up)
+    subprocess.run([SIMNIBS_PY, "-c", _LEADFIELD, m2m, fem, EEG_CAP], env=env, check=True)
+    print(f"[ok {sub}] CHARM + EEG leadfield -> {fem}", flush=True)
 
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
-    if not have_simnibs() and not a.dry_run:
-        print("SimNIBS is not installed (source checkout only at ~/dev/simnibs). Install it "
-              "(pip install the checkout / official installer), then re-run. Use --dry-run to check inputs.")
+    if not a.dry_run and not have_simnibs():
+        print(f"SimNIBS not importable from {SIMNIBS_PY} under the preload env. See "
+              "docs/simnibs_install_notes.md. Use --dry-run to check inputs without SimNIBS.")
         return
-    print(f"tier-3 forward-model prototype over {len(SUBJECTS)} subjects -> {OUT}")
-    for s in SUBJECTS:
+    subs = SUBJECTS[: a.limit] if a.limit else SUBJECTS
+    print(f"tier-3 forward-model prototype over {len(subs)} subjects -> {OUT}")
+    for s in subs:
         try:
             run_subject(s, a.dry_run)
         except subprocess.CalledProcessError as e:
