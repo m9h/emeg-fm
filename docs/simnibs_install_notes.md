@@ -56,28 +56,28 @@ The first full run got all the way through SAMSEG (55/55 structures) and the MNI
     [ simnibs ] INFO: Starting surface creation
     subprocess.CalledProcessError: .../run_cat_multiprocessing.py ... returned non-zero exit status 1
 
-`run_cat_multiprocessing.py` is the CAT12-derived central-surface reconstruction — heavy compiled code
-that is fragile on aarch64. **It is not needed for a volume-conduction leadfield:** the central GM
+`run_cat_multiprocessing.py` is the CAT12-derived central-surface reconstruction (it shells out to the
+x86_64 `CAT_*` binaries). **It is not needed for a volume-conduction leadfield:** the central GM
 surfaces only (a) refine the segmentation (open sulci / fill GM) and (b) serve source-space modelling;
 the TES/EEG FEM mesh is built from the tissue *volume* labels (`label_prep/tissue_labeling_upsampled.nii.gz`),
 which SAMSEG produces fine.
 
-Fix = run CHARM with `--usesettings scripts/charm_nosurf.ini`, a copy of the env's `charm.ini` with the
-`[surfaces]` block disabled:
+**What does NOT work:** disabling surfaces in `charm.ini` via `surf=[]`/`pial=[]`. CHARM still invokes
+`run_cat_multiprocessing` — now with empty `--surf`/`--pial` args — and argparse rejects them (exit 2).
+(An earlier `charm_nosurf.ini` tried this and failed on every fresh subject.)
 
-    surf = []            # was ["lh","rh"]
-    pial = []            # was ["lh","rh"]
-    fillin_gm_from_surf = false
-    open_sulci_from_surf = false
-    update_segmentation_from_surfaces = false
+**What works = run CHARM in two steps** (see `scripts/tier3_leadfield_prototype.py::run_subject`):
 
-Recovery for a subject that already segmented before the crash (no re-segmentation needed):
+    cd <subdir>
+    python -m simnibs.cli.charm <subID> <T1> --forcerun   # SAMSEG + MNI reg write the label image,
+                                                           # THEN the surface step crashes — tolerated
+                                                           # (rc≠0, but tissue_labeling_upsampled.nii.gz exists)
+    python -m simnibs.cli.charm <subID> --mesh             # FEM mesh from the label image (needs aarch64 mmg)
 
-    cd <subdir> && python -m simnibs.cli.charm <subID> --mesh   # builds the FEM mesh from the label image
-
-Trade-off: without the surface-based refinement the GM/CSF boundary is slightly coarser (no opened
-sulci). First-order head geometry — the conduction effect we're after — is unaffected. Re-enabling CAT
-surfaces (or grabbing them from FreeSurfer via `charm --fs-dir`) is a quality follow-up.
+The runner suppresses `check=` on step 1 and proceeds iff the label image landed. Trade-off: no
+surface-based refinement, so the GM/CSF boundary is slightly coarser (no opened sulci); first-order head
+geometry — the conduction effect we're after — is unaffected. Re-enabling CAT surfaces (or grabbing them
+from FreeSurfer via `charm --fs-dir`) is a quality follow-up.
 
 ## mmg3d crashes in the mesh step → rebuilt aarch64-native (blocker #2)
 With surfaces off, the mesh got through CGAL meshing, relabeling, spike removal, and surface

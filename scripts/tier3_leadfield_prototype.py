@@ -12,12 +12,13 @@ shipped libpetsc.so does not list it as NEEDED), and the bin/ console-scripts do
 every SimNIBS call here goes through the env's python with LD_PRELOAD/LD_LIBRARY_PATH set
 (`_simnibs_env`), invoking CHARM as a module (`-m simnibs.cli.charm`). See docs/simnibs_install_notes.md.
 
-CHARM's CAT cortical-surface reconstruction (run_cat_multiprocessing) crashes on this aarch64 build,
-so we run with `--usesettings charm_nosurf.ini` (surf=[]/pial=[] + the *_from_surf flags off). The
-central GM surfaces are only used to refine the segmentation and for source-space modelling; the
-TES/EEG volume-conduction FEM mesh is built from the tissue *volume* labels alone, which SAMSEG
-produces fine. (For the first subject, segmentation had already completed before the CAT crash, so the
-mesh was recovered directly with `charm <id> --mesh`.)
+CHARM's CAT cortical-surface reconstruction (run_cat_multiprocessing) calls x86_64 binaries that can't
+exec on this aarch64 build, and `surf=[]` does NOT skip it (charm still invokes it, with empty args).
+So CHARM is run in two steps (see run_subject): `charm <id> T1` (SAMSEG + MNI reg write the tissue label
+image, then the surface step crashes — tolerated) followed by `charm <id> --mesh` (builds the FEM mesh
+from the label image, needs the aarch64-rebuilt mmg). The central GM surfaces are only used to refine
+the segmentation / for source-space modelling; the volume-conduction FEM mesh needs the tissue *volume*
+labels alone.
 
 Conductivity is **scalar (isotropic)**: `dwi2cond` is not packaged in this aarch64 build, so DWI
 anisotropy ('vn') is a documented follow-up. The age-varying head *geometry* from CHARM is the
@@ -32,12 +33,6 @@ import subprocess
 BIDS = "/data/raw/hbn-bids"
 QSIPREP = "/data/raw/hbn-qsiprep"
 OUT = "/data/derivatives/volume_conduction/forward"
-
-# CHARM settings with CAT cortical-surface reconstruction disabled (surf=[]/pial=[] + the
-# *_from_surf flags). The CAT step (run_cat_multiprocessing) crashes on this aarch64 build, and a
-# TES/EEG FEM mesh needs only the tissue *volume* labels — not central GM surfaces. Absolute path
-# because charm runs with cwd=subject dir. See docs/simnibs_install_notes.md.
-CHARM_SETTINGS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "charm_nosurf.ini")
 
 # SimNIBS 4.1.0 install (conda env) + the libstdc++ preload its petsc4py requires.
 SIMNIBS_ENV = "/home/mhough/miniforge3/envs/simnibs_test_v11"
@@ -108,15 +103,29 @@ def run_subject(sub: str, dry: bool):
         print(f"[dry {sub}] T1={os.path.basename(t1)} dwi={'y' if dwi else 'no'} -> {m2m}"); return
     os.makedirs(subdir, exist_ok=True)
     env = _simnibs_env()
-    # 1) head segmentation + mesh (CHARM/SAMSEG; cortical surfaces disabled via CHARM_SETTINGS) —
-    #    idempotent: skip if the m2m mesh already exists; --forcerun overwrites a partial m2m folder.
-    if os.path.exists(f"{m2m}/{subID}.msh"):
-        print(f"[skip charm {sub}] {m2m} present", flush=True)
+    mesh = f"{m2m}/{subID}.msh"
+    label = f"{m2m}/label_prep/tissue_labeling_upsampled.nii.gz"
+    # CHARM in two explicit steps, because the x86_64 CAT cortical-surface binaries can't exec on
+    # aarch64. Setting surf=[] does NOT skip them (charm still calls run_cat_multiprocessing, with
+    # empty args → argparse exit 2), so instead:
+    #   1) `charm subID T1` runs SAMSEG + MNI registration and writes the tissue label image, THEN
+    #      crashes in the surface step — we tolerate that specific failure (no check=True) as long as
+    #      the label image landed; the central GM surfaces aren't needed for a volume-conduction mesh.
+    #   2) `charm subID --mesh` builds the FEM head mesh from that label image (needs the aarch64 mmg).
+    if os.path.exists(mesh):
+        print(f"[skip charm {sub}] mesh present", flush=True)
     else:
-        subprocess.run([SIMNIBS_PY, "-m", "simnibs.cli.charm", subID, t1,
-                        "--usesettings", CHARM_SETTINGS, "--forcerun"],
+        if not os.path.exists(label):
+            r = subprocess.run([SIMNIBS_PY, "-m", "simnibs.cli.charm", subID, t1, "--forcerun"],
+                               cwd=subdir, env=env)          # surface step exits nonzero — expected
+            if not os.path.exists(label):
+                raise subprocess.CalledProcessError(r.returncode, "charm segment (no label image)")
+        subprocess.run([SIMNIBS_PY, "-m", "simnibs.cli.charm", subID, "--mesh"],
                        cwd=subdir, env=env, check=True)
-    # 2) EEG leadfield (scalar conductivity; see module docstring for the DWI-anisotropy follow-up)
+    # 2) EEG leadfield (scalar conductivity; see module docstring for the DWI-anisotropy follow-up) —
+    #    idempotent: skip if a leadfield HDF5 is already present (each is ~2.4 GB, don't recompute).
+    if glob.glob(f"{fem}/*_leadfield_*.hdf5"):
+        print(f"[skip leadfield {sub}] present", flush=True); return
     subprocess.run([SIMNIBS_PY, "-c", _LEADFIELD, m2m, fem, EEG_CAP], env=env, check=True)
     print(f"[ok {sub}] CHARM + EEG leadfield -> {fem}", flush=True)
 
