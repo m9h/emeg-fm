@@ -12,6 +12,13 @@ shipped libpetsc.so does not list it as NEEDED), and the bin/ console-scripts do
 every SimNIBS call here goes through the env's python with LD_PRELOAD/LD_LIBRARY_PATH set
 (`_simnibs_env`), invoking CHARM as a module (`-m simnibs.cli.charm`). See docs/simnibs_install_notes.md.
 
+CHARM's CAT cortical-surface reconstruction (run_cat_multiprocessing) crashes on this aarch64 build,
+so we run with `--usesettings charm_nosurf.ini` (surf=[]/pial=[] + the *_from_surf flags off). The
+central GM surfaces are only used to refine the segmentation and for source-space modelling; the
+TES/EEG volume-conduction FEM mesh is built from the tissue *volume* labels alone, which SAMSEG
+produces fine. (For the first subject, segmentation had already completed before the CAT crash, so the
+mesh was recovered directly with `charm <id> --mesh`.)
+
 Conductivity is **scalar (isotropic)**: `dwi2cond` is not packaged in this aarch64 build, so DWI
 anisotropy ('vn') is a documented follow-up. The age-varying head *geometry* from CHARM is the
 first-order conduction effect and is fully captured. The EEG cap is SimNIBS's bundled 10-10 montage;
@@ -25,6 +32,12 @@ import subprocess
 BIDS = "/data/raw/hbn-bids"
 QSIPREP = "/data/raw/hbn-qsiprep"
 OUT = "/data/derivatives/volume_conduction/forward"
+
+# CHARM settings with CAT cortical-surface reconstruction disabled (surf=[]/pial=[] + the
+# *_from_surf flags). The CAT step (run_cat_multiprocessing) crashes on this aarch64 build, and a
+# TES/EEG FEM mesh needs only the tissue *volume* labels — not central GM surfaces. Absolute path
+# because charm runs with cwd=subject dir. See docs/simnibs_install_notes.md.
+CHARM_SETTINGS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "charm_nosurf.ini")
 
 # SimNIBS 4.1.0 install (conda env) + the libstdc++ preload its petsc4py requires.
 SIMNIBS_ENV = "/home/mhough/miniforge3/envs/simnibs_test_v11"
@@ -48,6 +61,10 @@ lf.pathfem = pathfem
 lf.eeg_cap = cap
 lf.field = "E"
 lf.anisotropy_type = "scalar"   # 'vn' (DWI-anisotropic) needs dwi2cond, absent in this build
+lf.interpolation = None         # no 'middle gm' surface interpolation (CAT surfaces broken on aarch64)
+lf.tissues = [2]                # ROI = GM *volume* tets (ElementTags.GM). The stock default is
+                                # [1006]=eye-balls (a landmark); cortex normally comes from the
+                                # disabled 'middle gm' step, so without this the leadfield is eyes-only.
 run_simnibs(lf)
 """
 
@@ -91,11 +108,13 @@ def run_subject(sub: str, dry: bool):
         print(f"[dry {sub}] T1={os.path.basename(t1)} dwi={'y' if dwi else 'no'} -> {m2m}"); return
     os.makedirs(subdir, exist_ok=True)
     env = _simnibs_env()
-    # 1) head segmentation + mesh (CHARM/SAMSEG) — idempotent: skip if the m2m mesh already exists
+    # 1) head segmentation + mesh (CHARM/SAMSEG; cortical surfaces disabled via CHARM_SETTINGS) —
+    #    idempotent: skip if the m2m mesh already exists; --forcerun overwrites a partial m2m folder.
     if os.path.exists(f"{m2m}/{subID}.msh"):
         print(f"[skip charm {sub}] {m2m} present", flush=True)
     else:
-        subprocess.run([SIMNIBS_PY, "-m", "simnibs.cli.charm", subID, t1],
+        subprocess.run([SIMNIBS_PY, "-m", "simnibs.cli.charm", subID, t1,
+                        "--usesettings", CHARM_SETTINGS, "--forcerun"],
                        cwd=subdir, env=env, check=True)
     # 2) EEG leadfield (scalar conductivity; see module docstring for the DWI-anisotropy follow-up)
     subprocess.run([SIMNIBS_PY, "-c", _LEADFIELD, m2m, fem, EEG_CAP], env=env, check=True)
