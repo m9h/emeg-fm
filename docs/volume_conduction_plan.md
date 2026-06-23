@@ -43,11 +43,16 @@ k-fold = subject-level CV (no pseudoreplication).
 4. `variance_partition(X_eeg, A, ages)` on the ~1534 cohort. Headline: % of EEG brain-age that is
    anatomy-redundant.
 
-## Tier 2 — joint VBM/DWI structural embedding
-Concatenate the tier-1 structural features (GM-probseg + FA/MD ROI maps), or encode them with
-`smri-fm`, into a per-subject `.npz` keyed by modality — same format as the fMRI cache — so it drops
-into the `wwj` zeta-law E1/E2/E4. New code: `emeg_fm/structural.py` (loaders + assembly). Depends on
-the tier-1 DWI/GM generation.
+## Tier 2 — joint VBM/DWI structural embedding  [BUILT]
+`scripts/build_structural_embedding.py` → `subject_structural_features` (block-pooled MNI GM-probseg ⊕
+global FA/MD scalars) over the EEG cohort → `structural_emb.npz` (X, ids), reusable by E1/E2/E4.
+Depends on the tier-1 DWI generation.
+
+## E4 — cross-modal EEG↔structural  [BUILT, core tested]
+`emeg_fm/cross_modal.py` (vendored twin of `wwj`'s e4; `tests/test_cross_modal.py` green) +
+`scripts/run_e4.py`: REVE EEG ⊗ structural → canonical-correlation spectrum, **full and
+age-residualized** (conduction removed) → shared-subspace dimension beyond conduction. The real
+EEG↔sMRI structure–function number, once the structural embedding exists.
 
 ## Tier 3 — forward-model prototype (5 subjects)
 The **causal** conduction test: does the anatomy-derived lead field reproduce the EEG age effect?
@@ -66,6 +71,9 @@ EGI-128). ~1–3 h CHARM + 0.5–2 h leadfield per subject ⇒ ~1 CPU-day for 5.
 - **Subject-level CV** throughout (rows = subjects, so k-fold is already subject-level).
 
 ## Run order
-1. (done) tier-1 core + tests.  2. reconstruct EEG IDs (no compute).  3. DWI FA/MD gen (cluster, hrs).
-4. GM/FA ROI features → `A`.  5. run tier-1 variance partition → headline.  6. tier-2 embedding.
-7. install SimNIBS → tier-3 prototype on the 5 subjects.
+1. (done) tier-1/tier-2/E4 cores + tests; EEG-ID reconstruction validated (2537==2537).
+2. `python scripts/gen_dwi_scalars.py` — DWI FA/MD (cluster, ~few CPU-hrs).
+3. `python scripts/run_tier1.py` — tier-1 variance-partition headline (anatomy-redundant vs EEG-unique).
+4. `python scripts/build_structural_embedding.py` — tier-2 structural_emb.npz.
+5. `python scripts/run_e4.py` — EEG↔structural cross-modal spectrum (full + age-residualized).
+6. install SimNIBS → `python scripts/tier3_leadfield_prototype.py` (5 subjects) — the causal test.

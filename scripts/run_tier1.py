@@ -17,30 +17,8 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "emeg_fm"))
-from structural import reve_embeddings, map_features, assemble   # noqa: E402
-from variance_partition import variance_partition               # noqa: E402
-
-QSIPREP = "/data/raw/hbn-qsiprep"
-DWI_SCALARS = "/data/derivatives/volume_conduction/dwi_scalars"
-
-
-def gm_mni(sub: str):
-    g = glob.glob(f"{QSIPREP}/{sub}/anat/{sub}_*space-MNI*label-GM_probseg.nii.gz")
-    return g[0] if g else None
-
-
-def dwi_scalars(sub: str):
-    import nibabel as nib
-    fa, md = f"{DWI_SCALARS}/{sub}/fa.nii.gz", f"{DWI_SCALARS}/{sub}/md.nii.gz"
-    if not (os.path.exists(fa) and os.path.exists(md)):
-        return None
-    FA = np.asarray(nib.load(fa).dataobj, float)
-    MD = np.asarray(nib.load(md).dataobj, float)
-    brain = FA > 0
-    wm = FA > 0.2                                    # crude WM proxy; prefer qsiprep dseg WM label
-    return np.array([FA[brain].mean(), FA[brain].std(),
-                     FA[wm].mean() if wm.any() else 0.0,
-                     MD[brain].mean(), MD[wm].mean() if wm.any() else 0.0])
+from structural import reve_embeddings, subject_structural_features, assemble   # noqa: E402
+from variance_partition import variance_partition                             # noqa: E402
 
 
 def main():
@@ -56,10 +34,9 @@ def main():
     grid = (a.grid,) * 3
     anat = {}
     for s in subs:
-        g, d = gm_mni(s), dwi_scalars(s)
-        if g is None or d is None:
-            continue
-        anat[s] = np.concatenate([map_features(g, grid), d])
+        v = subject_structural_features(s, grid)        # block-pooled MNI GM ⊕ FA/MD scalars
+        if v is not None:
+            anat[s] = v
     print(f"anatomy features assembled for {len(anat)}/{len(subs)} EEG subjects", flush=True)
 
     E, A, y, kept = assemble(subs, X, ages, anat)

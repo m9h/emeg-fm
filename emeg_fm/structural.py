@@ -57,6 +57,40 @@ _HBN_PARTICIPANTS = "/data/datasets/hbn-eeg/participants.tsv"
 _SID_RE = re.compile(r"sub-([A-Za-z0-9]+)")
 
 
+_QSIPREP = "/data/raw/hbn-qsiprep"
+_DWI_SCALARS = "/data/derivatives/volume_conduction/dwi_scalars"
+
+
+def gm_probseg_mni(sub: str, qsiprep: str = _QSIPREP):
+    g = glob.glob(f"{qsiprep}/{sub}/anat/{sub}_*space-MNI*label-GM_probseg.nii.gz")
+    return g[0] if g else None
+
+
+def dwi_scalar_features(sub: str, dwi_root: str = _DWI_SCALARS):
+    """Global FA/MD summaries (cross-subject comparable): mean/std FA in brain, mean FA/MD in WM,
+    mean MD in brain. WM proxy = FA>0.2 (swap in the qsiprep dseg WM label for a published run)."""
+    import nibabel as nib
+    fa, md = f"{dwi_root}/{sub}/fa.nii.gz", f"{dwi_root}/{sub}/md.nii.gz"
+    if not (os.path.exists(fa) and os.path.exists(md)):
+        return None
+    FA = np.asarray(nib.load(fa).dataobj, float)
+    MD = np.asarray(nib.load(md).dataobj, float)
+    brain, wm = FA > 0, FA > 0.2
+    return np.array([FA[brain].mean(), FA[brain].std(), FA[wm].mean() if wm.any() else 0.0,
+                     MD[brain].mean(), MD[wm].mean() if wm.any() else 0.0])
+
+
+def subject_structural_features(sub: str, grid=(8, 8, 8), qsiprep: str = _QSIPREP,
+                                dwi_root: str = _DWI_SCALARS):
+    """Per-subject structural vector = block-pooled MNI GM-probseg (VBM, cross-subject aligned) ⊕
+    global FA/MD scalars (DWI). Returns None if either map is missing."""
+    g = gm_probseg_mni(sub, qsiprep)
+    d = dwi_scalar_features(sub, dwi_root)
+    if g is None or d is None:
+        return None
+    return np.concatenate([map_features(g, grid), d])
+
+
 def reve_embeddings(npz: str = "/mnt/t9/reve_hbn_emb.npz",
                     epochs_glob: str = _HBN_EPO_GLOB,
                     participants: str = _HBN_PARTICIPANTS):
