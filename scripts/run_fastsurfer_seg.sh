@@ -11,7 +11,9 @@ OUT=/data/derivatives/volume_conduction/fastsurfer_seg
 IMAGE="${IMAGE:-fastsurfer:grace}"
 LIMIT="${LIMIT:-0}"
 mkdir -p "$OUT"
-if [ "$#" -gt 0 ]; then                     # explicit subject ids as args -> just those
+if [ -n "${SUBJ_FILE:-}" ] && [ -f "${SUBJ_FILE:-}" ]; then   # subject ids (one per line) from a file
+  mapfile -t subs < "$SUBJ_FILE"
+elif [ "$#" -gt 0 ]; then                   # explicit subject ids as args -> just those
   subs=("$@")
 else                                        # else the whole hbn-bids cohort (optionally first LIMIT)
   mapfile -t subs < <(ls -d "$BIDS"/sub-* 2>/dev/null | xargs -n1 basename | sort)
