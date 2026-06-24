@@ -104,6 +104,29 @@ Install over the x86_64 stub, keeping a backup (all deps resolve via `ldd`; no s
 After this, `charm <id> --mesh` completes the FEM head mesh. (If a future SimNIBS update overwrites the
 binary, just rebuild and re-copy.)
 
+## Cortical-surface source space (optional): FastSurfer on x86 → `charm --fs-dir`
+Our leadfield is over the GM *volume* because the central GM surfaces are unavailable on aarch64 (CAT
+broke; see above). A cortical **surface** source space (the standard EEG forward representation) is still
+reachable, but the surface generator has to run on x86:
+
+- **Segmentation works on aarch64** — the `fastsurfer:grace` image runs FastSurferCNN on the GB10 GPU
+  (~2 min/subj) and yields `aparc.DKTatlas+aseg` + regional-volume stats (good morphometry features).
+- **Surfaces do NOT** — FastSurfer's `recon-surf` needs **FreeSurfer 7.4.1**, which has *no* Linux-aarch64
+  build (FreeSurfer ships x86_64-Linux + macOS only). Same wall as the CAT/mmg x86_64 binaries.
+
+Two-machine workflow (`scripts/run_fastsurfer_x86.sh` automates step 2):
+1. rsync the 5 prototype T1s (~26 MB each) to an x86 + NVIDIA-GPU host.
+2. on x86: `bash run_fastsurfer_x86.sh` → FreeSurfer subject dirs (`surf/{lh,rh}.{white,pial,sphere,sphere.reg}`).
+3. rsync the FS dirs back, then on aarch64 run the **surface** leadfield:
+
+       charm <id> <T1> --fs-dir <FS_OUT>/sub-<id>     # grabs FS surfaces, SKIPS CAT (charm_main.py:334), meshes (mmg)
+       # then TDCSLEADFIELD with interpolation='middle gm' (central GM surface now exists) + default tissues
+
+   Verified that `charm --fs-dir` takes the `if fs_dir:` branch (loads white/pial/sphere(.reg), estimates
+   the central surface, updates the segmentation from it) and never calls `run_cat_multiprocessing` — so
+   the broken CAT step is bypassed. The aarch64 ingestion + surface leadfield will be wired and validated
+   once real FS dirs are available (not implemented blind, to avoid an unvalidated path).
+
 ## Known gaps (documented follow-ups, not blockers)
 - **No `dwi2cond`** in this aarch64 build (not in `simnibs.cli`, no `bin/dwi2cond`) → the prototype
   uses **scalar (isotropic) conductivity**. DWI-anisotropic conductivity (`anisotropy_type='vn'`) is a
