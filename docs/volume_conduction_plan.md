@@ -54,13 +54,26 @@ Depends on the tier-1 DWI generation.
 age-residualized** (conduction removed) → shared-subspace dimension beyond conduction. The real
 EEG↔sMRI structure–function number, once the structural embedding exists.
 
-## Tier 3 — forward-model prototype (5 subjects)
+## Tier 3 — forward-model prototype (5 subjects)  [DONE — pipeline works end-to-end]
 The **causal** conduction test: does the anatomy-derived lead field reproduce the EEG age effect?
-Install SimNIBS, then per subject: CHARM head segmentation (raw T1, `hbn-bids/.../acq-HCP_T1w`) →
-DWI conductivity tensors (mrtrix) → SimNIBS EEG leadfield (electrodes from `emeg_fm/montage.py`,
-EGI-128). ~1–3 h CHARM + 0.5–2 h leadfield per subject ⇒ ~1 CPU-day for 5. **Prototype subjects**
-(EEG+T1+DWI+age verified): `sub-NDARAA948VFH` (7.98), `sub-NDARAB458VK9` (12.84),
+Per subject: CHARM head segmentation (raw T1, `hbn-bids/.../acq-HCP_T1w`) → SimNIBS EEG leadfield
+(`scripts/tier3_leadfield_prototype.py`). **All 5 prototype subjects have a valid GM-volume leadfield**
+(75 elec × ~0.9–1.35M GM tets × 3, V/m): `sub-NDARAA948VFH` (7.98), `sub-NDARAB458VK9` (12.84),
 `sub-NDARAC349YUC` (10.05), `sub-NDARAC853DTE` (10.23), `sub-NDARAD224CRB` (8.48).
+
+SimNIBS 4.1 ships **x86_64** binaries; this box is aarch64. Workarounds (see `docs/simnibs_install_notes.md`):
+libstdc++ preload for petsc4py; **two-step CHARM** (`charm T1` writes the label image then the x86_64
+CAT surface step crashes — tolerated — followed by `charm --mesh`); **mmg 5.8.0 rebuilt from source**
+for the mesh optimiser; leadfield with `interpolation=None` + `tissues=[2]` (GM volume — the default
+needs the disabled central surfaces / lands on eye-balls). Conductivity is scalar (no aarch64 `dwi2cond`);
+cap is the bundled 10-10 (EGI-128 is a follow-up).
+
+**Leadfield doesn't scale raw** (~2 GB/subj ⇒ ~3.7 TB at n≈1534). `emeg_fm/leadfield.py` +
+`scripts/build_leadfield_descriptors.py` reduce each to a compact per-subject descriptor (per-electrode
+block-pooled GM field, 75·grid³ ≈ 4800-d, + per-electrode RMS gain); `--discard-raw` is the scaling mode.
+n=5 age trend is illustrative only (far too few for a real test). To run the actual tier-3 test: scale
+the summary-only pipeline over the cohort, then variance-partition the leadfield descriptor vs the EEG
+age signal (same machinery as tier-1).
 
 ## Honest caveats
 - **Correlation ≠ causation.** The tier-1 redundancy split is *consistent with* conduction, not proof:
@@ -76,4 +89,6 @@ EGI-128). ~1–3 h CHARM + 0.5–2 h leadfield per subject ⇒ ~1 CPU-day for 5.
 3. `python scripts/run_tier1.py` — tier-1 variance-partition headline (anatomy-redundant vs EEG-unique).
 4. `python scripts/build_structural_embedding.py` — tier-2 structural_emb.npz.
 5. `python scripts/run_e4.py` — EEG↔structural cross-modal spectrum (full + age-residualized).
-6. install SimNIBS → `python scripts/tier3_leadfield_prototype.py` (5 subjects) — the causal test.
+6. (done) `python scripts/tier3_leadfield_prototype.py` (5 subjects) — GM-volume leadfields.
+7. `python scripts/build_leadfield_descriptors.py [--discard-raw]` — compact per-subject leadfield
+   descriptor (storable at cohort scale); prints the n=5 leadfield-vs-age trend (illustrative).
