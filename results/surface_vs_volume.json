@@ -1,0 +1,30 @@
+{
+  "n_subjects": 4,
+  "mean_pearson": 0.90109687816323,
+  "per_subject": [
+    {
+      "subject": "sub-NDARAB458VK9",
+      "n_elec": 75,
+      "pearson": 0.9108881372713313,
+      "spearman": 0.9741394025604552
+    },
+    {
+      "subject": "sub-NDARAC349YUC",
+      "n_elec": 75,
+      "pearson": 0.7306331351167374,
+      "spearman": 0.918406827880512
+    },
+    {
+      "subject": "sub-NDARAC853DTE",
+      "n_elec": 75,
+      "pearson": 0.9677809646647041,
+      "spearman": 0.976927453769559
+    },
+    {
+      "subject": "sub-NDARAD224CRB",
+      "n_elec": 75,
+      "pearson": 0.9950852756001473,
+      "spearman": 0.9929729729729729
+    }
+  ]
+}
