@@ -5,6 +5,7 @@
 \usepackage{hyperref}
 \usepackage{url}
 \usepackage{graphicx}
+\graphicspath{{figures/}}
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{amssymb}
@@ -23,6 +24,7 @@ A Per-Trial, Cross-Paradigm, Cross-Method Audit of EEG Decoders}
 \date{\today}
 
 \begin{document}
+\sloppy  % tolerate looser inter-word spacing to avoid minor overfull boxes
 \maketitle
 
 \begin{abstract}
@@ -81,6 +83,27 @@ the trap is metric-induced. (iv) We report a decoder--identity dissociation: \re
 identity-dominated yet not more trap-prone per trial, and a plain SVD control out-decodes it per
 trial on several clean ERP contrasts.
 
+\section{Related work}
+\paragraph{Identity confounds in EEG decoding.} EEG is notoriously subject-specific, and decoders
+that look skilled under subject-mixed evaluation often collapse across subjects; MOABB
+\citep{jayaram2018moabb} standardises within- vs.\ cross-subject splits precisely to expose this.
+\fmscope{} \citep{fmscope} sharpens the concern for foundation models with a subject-axis erasure,
+reporting that frozen EEG-FM features are ``identity-trapped.'' We do not dispute the measurement;
+we show its verdict is governed by how erasure is scored.
+
+\paragraph{Linear concept erasure.} Removing a concept (here, subject identity) from a representation
+by a linear map is well studied: iterative nullspace projection \citep{ravfogel2020inlp}, adversarial
+relaxations \citep{ravfogel2022rlace}, and the closed-form LEACE \citep{belrose2023leace} used here
+and by \fmscope{}. These methods erase a direction; they say nothing about how the downstream metric
+is aggregated, which is where the trap originates.
+
+\paragraph{Pooling and pseudoreplication.} Averaging correlated within-unit observations into one
+point per unit before testing is the classical pseudoreplication error \citep{hurlbert1984}: it
+shrinks within-unit variance and inflates apparent effects. The pooled erasure
+(\cref{eq:pool}) is exactly this---one mean-pooled point per $(\text{subject},\text{class})$---so the
+``trap'' is the statistical signature of pooling, recovered here for a foundation model and an
+unsupervised classical control alike.
+
 \section{Methods}
 \paragraph{Subject-axis erasure.} For features $X\in\mathbb{R}^{n\times d}$ with subject labels and
 task labels, we fit LEACE to linearly erase the subject axis and report task balanced accuracy
@@ -90,11 +113,21 @@ identity). A row is \emph{interpretable} only if the raw task decode clears a $0
 interpretable rows we call a \emph{trap} when the identity-free $\BA$ exceeds the raw $\BA$ by more
 than $0.02$, \emph{task-carried} when it does not, and \emph{no-transfer} below the gate.
 
-\paragraph{Pooled vs.\ per-trial.} The \emph{pooled} protocol (as published) makes one recording per
-$(\text{subject},\text{class})$ and mean-pools its per-trial predictions; the erasure CV is over these
-few recordings. The \emph{per-trial} protocol makes one recording per window and groups the
-stratified-$k$-fold CV by subject, so $n$ is the trial count (thousands) and no subject is split
-across folds.
+\paragraph{Pooled vs.\ per-trial.} Let the data be $S$ subjects $\times$ $C$ classes, with $m_{sc}$
+trials in cell $(s,c)$ and $n=\sum_{s,c} m_{sc}$ trials total. A linear probe $w$ gives a per-trial
+score $\sigma(w^{\top}\phi_i)$. The \emph{pooled} protocol (as published) forms one recording per
+$(s,c)$ whose label is the \emph{mean} of its per-trial scores,
+\begin{equation}
+\hat p_{sc} \;=\; \frac{1}{m_{sc}}\sum_{i\in(s,c)} \sigma\!\left(w^{\top}\phi_i\right),
+\label{eq:pool}
+\end{equation}
+and scores $\BA$ over the $SC$ aggregated points. Mean-pooling shrinks each cell's score variance by
+$\approx 1/m_{sc}$, so the $SC$ points are far more separable than individual trials; with $SC$
+small (a handful of subjects $\times$ two classes), \emph{both} the fitted LEACE erasure direction
+and the post-erasure $\BA$ are high-variance, and a spurious post-erasure lift arises easily. The
+\emph{per-trial} protocol scores the same probe over all $n$ trials with stratified-$k$-fold CV
+\emph{grouped by subject} (no subject split across folds), so the effective sample is $n\gg SC$ and
+the estimate is stable. The trap is the gap between these two estimators, not a property of $\phi$.
 
 \paragraph{Feature families.} \reve{} is a transformer EEG foundation model; we read its block-6
 features under its published input contract (0.5--99.5\,Hz, 200\,Hz). The \tcm{} control is the
@@ -116,7 +149,9 @@ counts. Under pooling \reve{} traps on $\fmmiPoolTrap{}/\fmmiPoolN{}$ MI, $\fmer
 ERP, and $\fmssvepPoolTrap{}/\fmssvepPoolN{}$ SSVEP datasets ($\fmPoolTrapTotal{}$ total); under the
 per-trial metric only $\fmPtTrapTotal{}/\fmPtNTotal{}$ trap. The classical \tcm{} control shows the same
 collapse---pooled lifts on $\tcmmiPoolLift{}/\tcmmiN{}$ MI and $\tcmerpPoolLift{}/\tcmerpN{}$ ERP
-datasets, zero per-trial traps.
+datasets, zero per-trial traps (\cref{fig:trapfrac}). \Cref{fig:liftscatter} shows the mechanism
+per dataset: pooled erasure lift is large and positive, while the matched per-trial lift collapses
+into a band around zero---for the FM and the control alike.
 
 \begin{table}[t]\centering
 \caption{Identity-trap counts (datasets trapping / interpretable datasets) by paradigm, feature
@@ -125,6 +160,23 @@ the foundation model and the classical control.}
 \label{tab:trapcount}
 \trapCountTable
 \end{table}
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.62\textwidth]{fig_trap_fraction.png}
+\caption{Fraction of interpretable datasets that trap, by paradigm and erasure metric. Pooled
+erasure (dark bars) traps most datasets---every MI set for \reve{}---while the per-trial metric
+(light bars) is near-zero, for both the foundation model and the Wang TCM control.}
+\label{fig:trapfrac}
+\end{figure}
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.52\textwidth]{fig_lift_scatter.png}
+\caption{Per-dataset erasure lift, pooled (x) vs.\ per-trial (y). Each point is one dataset
+(\reve{}=circle, Wang TCM=triangle; colour = paradigm). Points sit at large positive pooled lift
+but inside the per-trial no-trap band ($|{\cdot}|<\liftEps$, grey), i.e.\ the lift is a property of
+the pooled metric, not the model or the feature family.}
+\label{fig:liftscatter}
+\end{figure}
 
 \paragraph{Canonical reproduction.} \Cref{tab:repro} reproduces the \fmscope{} paper's own
 motor-imagery trap. BNCI2014-001 (the ds004362 class) recovers under \reve{} pooling from
@@ -145,7 +197,19 @@ $[\reveSubjferpLo{},\reveSubjferpHi{}]$ (ERP), $[\reveSubjfssvepLo{},\reveSubjfs
 shows no robust per-trial trap. \Cref{tab:h2h} pairs per-trial decode with identity encoding on
 representative ERP datasets: \reve{} carries far more identity than \tcm{} but is not more
 trap-prone, and on clean contrasts (Huebner2017, ERPCore-ERN, Lee2019-ERP) the plain-SVD \tcm{}
-control \emph{out-decodes} the foundation model per trial.
+control \emph{out-decodes} the foundation model per trial. \Cref{fig:identity} makes the
+dissociation explicit across all per-trial datasets: \reve{}'s subject fraction is uniformly high,
+yet it is uncorrelated with whether the task decodes per trial---identity dominance does not buy a
+trap.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.62\textwidth]{fig_identity_vs_decode.png}
+\caption{\reve{} per-trial: identity dominance (subject fraction, x) vs.\ per-trial task decode
+(raw balanced accuracy, y), coloured by verdict. Identity fraction is high throughout but does not
+predict the per-trial outcome---the representation is subject-dominated whether or not the task
+survives erasure.}
+\label{fig:identity}
+\end{figure}
 
 \begin{table}[t]\centering
 \caption{Per-trial decode and identity encoding on representative ERP datasets. \reve{}'s subject
@@ -196,8 +260,15 @@ control. We recommend per-trial, subject-grouped erasure as the standard for ide
 \bibitem[Belrose et al.(2023)]{belrose2023leace} N.~Belrose et al. LEACE: Perfect linear concept
 erasure in closed form. \emph{NeurIPS}, 2023.
 \bibitem[\fmscope{}]{fmscope} The Identity Trap in EEG Foundation Models. Preprint, 2026.
+\bibitem[Hurlbert(1984)]{hurlbert1984} S.~H.~Hurlbert. Pseudoreplication and the design of ecological
+field experiments. \emph{Ecological Monographs}, 54(2):187--211, 1984.
 \bibitem[Jayaram \& Barachant(2018)]{jayaram2018moabb} V.~Jayaram and A.~Barachant. MOABB: trustworthy
 algorithm benchmarking for BCIs. \emph{J. Neural Eng.}, 2018.
+\bibitem[Ravfogel et al.(2020)]{ravfogel2020inlp} S.~Ravfogel, Y.~Elazar, H.~Gonen, M.~Twiton, and
+Y.~Goldberg. Null it out: Guarding protected attributes by iterative nullspace projection.
+\emph{ACL}, 2020.
+\bibitem[Ravfogel et al.(2022)]{ravfogel2022rlace} S.~Ravfogel, M.~Twiton, Y.~Goldberg, and
+R.~Cotterell. Linear adversarial concept erasure. \emph{ICML}, 2022.
 \bibitem[Wang et al.(2000)]{wang2000tcm} K.~Wang, H.~Begleiter, and B.~Porjesz. Trilinear modeling of
 ERP topography (Topographic Component Model). 2000.
 \end{thebibliography}

@@ -49,3 +49,8 @@ venv/
 .idea/
 *.swp
 .DS_Store
+.claude/
+
+# --- generated / scratch ---
+*.bak
+paper/figures/
