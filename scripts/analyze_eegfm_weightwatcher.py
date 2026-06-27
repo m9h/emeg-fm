@@ -163,6 +163,17 @@ def _load_luna(model_id: str, cache_dir: str):
                                        filename="LUNA_large.safetensors")
 
 
+def _lumamba_loader(filename: str):
+    """PulpBio/LuMamba ships four objective variants in one repo (CC-BY-ND-4.0,
+    not gated); WW only reads the ESD, no redistribution. The architecture is
+    shared across variants, so the state-dict wrapper handles all — pick the
+    checkpoint by filename.
+    """
+    def _loader(model_id: str, cache_dir: str):
+        return _load_from_hf_safetensors(model_id, cache_dir, filename=filename)
+    return _loader
+
+
 MODELS = {
     "reve":    ("brain-bzh/reve-base",                              _load_reve),
     "labram":  ("braindecode/labram-pretrained",                    lambda i, c: _load_braindecode_model("Labram",  i, c)),
@@ -170,6 +181,12 @@ MODELS = {
     "biot":    ("braindecode/biot-pretrained-six-datasets-18chs",   lambda i, c: _load_braindecode_model("BIOT",    i, c)),
     "cbramod": ("braindecode/cbramod-pretrained",                   _load_cbramod),
     "luna":    ("PulpBio/LUNA",                                     _load_luna),
+    # LuMamba: headline = full LeJEPA+reconstruction at 300 slices (longest
+    # context); the other three are objective/context ablations in the same repo.
+    "lumamba":           ("PulpBio/LuMamba", _lumamba_loader("LuMamba_LeJEPA_reconstruction_300slices.safetensors")),
+    "lumamba-recon128":  ("PulpBio/LuMamba", _lumamba_loader("LuMamba_LeJEPA_reconstruction_128slices.safetensors")),
+    "lumamba-lejepa":    ("PulpBio/LuMamba", _lumamba_loader("LuMamba_LeJEPAOnly_128slices.safetensors")),
+    "lumamba-recononly": ("PulpBio/LuMamba", _lumamba_loader("LuMamba_ReconstructionOnly.safetensors")),
     "zuna":    ("mhough/zuna-base",                                 _load_zuna),
 }
 
@@ -221,6 +238,37 @@ def analyse_model(name: str, model_id: str, loader, cache_dir: str,
     return summary
 
 
+def _merge_summaries(existing_rows, new_rows, order):
+    """Merge WW summary rows by model name, preferring successful runs.
+
+    A row with ``status != "ok"`` (a load/WW failure, carrying no metrics) must
+    never overwrite an existing ``"ok"`` row — otherwise a transient gated-HF
+    401 or a user-site triton shadowing the SIF silently wipes good numbers out
+    of ``all_models_summary.json`` (this is exactly how the stale ``reve`` NaN
+    row got frozen). A fresh ``ok`` row does replace an older one. Rows are
+    returned ordered by ``order`` (known MODELS first), then any extras.
+    """
+    merged: dict[str, dict] = {}
+
+    def _consider(row):
+        name = row.get("model")
+        if name is None:
+            return
+        prev = merged.get(name)
+        if prev is not None and prev.get("status") == "ok" and row.get("status") != "ok":
+            return
+        merged[name] = row
+
+    for row in existing_rows:
+        _consider(row)
+    for row in new_rows:
+        _consider(row)
+
+    ordered = [merged[n] for n in order if n in merged]
+    ordered += [r for n, r in merged.items() if n not in order]
+    return ordered
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--cache-dir", default="/data/derivatives/eeg_sae/hf_cache")
@@ -248,17 +296,13 @@ def main():
     # name so models can be added incrementally without clobbering prior rows.
     summary_path = out_dir / "all_models_summary.csv"
     summary_json = out_dir / "all_models_summary.json"
-    merged: dict[str, dict] = {}
+    existing_rows: list[dict] = []
     if summary_json.exists():
         try:
-            for row in json.loads(summary_json.read_text()):
-                merged[row["model"]] = row
-        except (json.JSONDecodeError, KeyError, TypeError):
-            pass
-    for row in summaries:
-        merged[row["model"]] = row
-    ordered = [merged[n] for n in MODELS if n in merged]
-    ordered += [r for n, r in merged.items() if n not in MODELS]
+            existing_rows = json.loads(summary_json.read_text())
+        except (json.JSONDecodeError, TypeError):
+            existing_rows = []
+    ordered = _merge_summaries(existing_rows, summaries, order=list(MODELS))
     sdf = pd.DataFrame(ordered)
     sdf.to_csv(summary_path, index=False)
     summary_json.write_text(json.dumps(ordered, indent=2))

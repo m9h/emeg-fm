@@ -83,7 +83,7 @@ scripts/
   download_hbn_s3_direct.py, predownload_hbn_all.py               HBN data staging
   *.sbatch                      Slurm wrappers (single-GPU GB10; Apptainer SIF)
 tests/        pytest suite (mocks all model downloads; no GPU / gated access needed)
-docs/         WeightWatcher analysis writeup + eegdash issue notes
+docs/         WeightWatcher analysis writeup, ERP CORE Luck-parity decoding (docs/ERPCORE_LUCK_PARITY.md), eegdash issue notes
 ```
 
 ## Quickstart (CPU, no models)

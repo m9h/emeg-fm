@@ -92,6 +92,11 @@ def main():
     ap.add_argument("--tmax", type=float, default=1.0)
     ap.add_argument("--montage", nargs="*", default=None,
                     help="explicit channel labels to subset/reorder to")
+    ap.add_argument("--montage-preset", default=None,
+                    help="named montage preset (e.g. 'epocflex32'); "
+                         "overrides --montage")
+    ap.add_argument("--skip-montage-check", action="store_true",
+                    help="skip the headless standard_1020 label pre-flight")
     # Layer-3 device bridge (live only; replay data is already filtered)
     ap.add_argument("--bridge", action="store_true",
                     help="enable the DeviceBridge front-end (live consumer headset)")
@@ -118,6 +123,20 @@ def main():
                     help="don't trial-average repeats before fitting")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
+
+    # Resolve a named preset and pre-flight every label against MNE
+    # standard_1020 before we touch a GPU or the gated REVE checkpoint. A
+    # typo'd or legacy label (T3 for T7) fails here in milliseconds instead of
+    # mid-session. Replay data carries its own montage, so only check when an
+    # explicit montage/preset was given.
+    if args.montage_preset:
+        from emeg_fm.montage import get_preset
+        args.montage = get_preset(args.montage_preset)
+    if args.montage and not args.skip_montage_check:
+        from emeg_fm.montage import validate_montage
+        args.montage = validate_montage(args.montage)   # raises on unknown
+        print(f"[montage] {len(args.montage)} labels resolve to standard_1020",
+              flush=True)
 
     from emeg_fm.decoder import StreamingReveDecoder
 
