@@ -1,0 +1,29 @@
+{
+  "dataset": "ds004148",
+  "model": "brain-bzh/reve-base",
+  "layer": 6,
+  "n_subjects": 47,
+  "n_windows": 5640,
+  "paper_reve": {
+    "label_ba_raw": 0.6778,
+    "label_ba_erased": 0.8167,
+    "subj_ba_linear_pre": 0.9815,
+    "n_subj": 60
+  },
+  "ours_pooled": {
+    "raw": 0.7198581560283688,
+    "erased": 0.8191489361702128,
+    "delta": 0.09929078014184396,
+    "subj_pre": 0.9251063829787235,
+    "subj_post": 0.004042553191489362,
+    "interpretable": true
+  },
+  "ours_per_trial": {
+    "raw": 0.6585106382978724,
+    "erased": 0.6377659574468085,
+    "delta": -0.020744680851063808,
+    "interpretable": true
+  },
+  "raw_gap_vs_paper": 0.04205815602836882,
+  "erased_gap_vs_paper": 0.002448936170212801
+}

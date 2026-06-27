@@ -1,0 +1,14 @@
+{
+  "n_morph": 5,
+  "n_regions": 100,
+  "tier1_morphometry": {
+    "r2_eeg": -1.1468106069278128,
+    "r2_anat": -0.699625609999933,
+    "r2_joint": -0.578543372239436,
+    "redundant": -1.2678928446883098,
+    "eeg_unique": 0.12108223776049698,
+    "anat_unique": 0.5682672346883768,
+    "redundant_fraction": NaN,
+    "eeg_unique_fraction": NaN
+  }
+}
