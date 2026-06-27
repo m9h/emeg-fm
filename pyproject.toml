@@ -51,8 +51,14 @@ test = [
     "pytest>=7.0",
 ]
 
-[tool.setuptools]
-packages = ["emeg_fm"]
+# Package both the top-level emeg_fm library and the vendored fmscope subpackage
+# (identity-trap audit + LEACE erasure + probes), the latter living under
+# fmscope/fmscope/. Declaring it makes `import fmscope` work after install, so
+# neurojax (and others) can re-export the identity-trap diagnostics.
+[tool.setuptools.packages.find]
+where = [".", "fmscope"]
+include = ["emeg_fm*", "fmscope*"]
+namespaces = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
