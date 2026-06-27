@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from denoise import denoise_whiten
+
 
 def _residualize(X: np.ndarray, C: np.ndarray) -> np.ndarray:
     C = np.asarray(C, float)
@@ -27,19 +29,25 @@ def _whiten(X: np.ndarray, reg: float) -> np.ndarray:
     return Xc @ (V @ np.diag(1.0 / np.sqrt(w + reg * float(w.max()))) @ V.T)
 
 
+def _w(X: np.ndarray, reg: float, denoise: bool) -> np.ndarray:
+    """Whitener: Donoho spiked-model denoising (parameter-free) or the `reg`-loaded Tikhonov whitener."""
+    return denoise_whiten(X) if denoise else _whiten(X, reg)
+
+
 def cross_modal_spectrum(Xa: np.ndarray, Xb: np.ndarray, reg: float = 1e-3,
-                         covariate: np.ndarray | None = None) -> np.ndarray:
+                         covariate: np.ndarray | None = None, denoise: bool = False) -> np.ndarray:
     """Canonical correlations between Xa, Xb (descending, ∈[0,1]); `covariate` (e.g. age) residualized
-    out of both first if given."""
+    out of both first if given. `denoise=True` uses Donoho spiked-model whitening (parameter-free, lower
+    high-d bias) instead of the `reg`-loaded whitener."""
     Xa, Xb = np.asarray(Xa, float), np.asarray(Xb, float)
     if covariate is not None:
         Xa, Xb = _residualize(Xa, covariate), _residualize(Xb, covariate)
-    M = (_whiten(Xa, reg).T @ _whiten(Xb, reg)) / len(Xa)
+    M = (_w(Xa, reg, denoise).T @ _w(Xb, reg, denoise)) / len(Xa)
     return np.clip(np.sort(np.linalg.svd(M, compute_uv=False))[::-1], 0.0, 1.0)
 
 
 def permutation_null(Xa: np.ndarray, Xb: np.ndarray, n_perm: int = 1000, reg: float = 1e-3,
-                     covariate: np.ndarray | None = None, seed: int = 0) -> dict:
+                     covariate: np.ndarray | None = None, seed: int = 0, denoise: bool = False) -> dict:
     """Permutation null for the **top** canonical correlation, needed because CCA at high d is upward
     biased: with d≈n even unrelated modalities show large ρ₁, so the absolute value is uninterpretable
     without a null. Shuffle the Xa↔Xb subject pairing `n_perm` times and recompute ρ₁.
@@ -52,7 +60,7 @@ def permutation_null(Xa: np.ndarray, Xb: np.ndarray, n_perm: int = 1000, reg: fl
     if covariate is not None:
         Xa, Xb = _residualize(Xa, covariate), _residualize(Xb, covariate)
     n = len(Xa)
-    Wa, Wb = _whiten(Xa, reg), _whiten(Xb, reg)
+    Wa, Wb = _w(Xa, reg, denoise), _w(Xb, reg, denoise)
     top = lambda B: float(np.linalg.svd(Wa.T @ B / n, compute_uv=False)[0])
     obs = top(Wb)
     rng = np.random.default_rng(seed)
