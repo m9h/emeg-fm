@@ -128,9 +128,21 @@ The field scaled, then turned a rigor lens on itself — and the lens is ours.
   EEG — the same evaluation-hygiene problem as §4.
 - **Multimodal (OURS):** cross-subject **EEG→fMRI on HBN** — sweep wf_e512e1b2
   verified ~1,224 subjects, non-simultaneous → **11 ranked cross-subject cases**
-  (top-3 near-runnable; `examples/eeg_to_fmri_hbn.py`); the Calhas-2025 "two
-  strategies" fork (bespoke NN vs frozen-FM adapter) on HBN's FreeSurfer/C-PAC
-  derivatives — the very cohort behind the NeurIPS-2025 EEG Foundation Challenge.
+  (`examples/eeg_to_fmri_hbn.py`); the Calhas-2025 "two strategies" fork (bespoke NN
+  vs frozen-FM adapter) on HBN's FreeSurfer/C-PAC derivatives — the very cohort
+  behind the NeurIPS-2025 EEG Foundation Challenge.
+
+  > **First empirical result (case #2, n=804).** Frozen **REVE resting-EEG embedding
+  > → CC200 resting FC**, cross-subject. The raw canonical correlation looks real
+  > (CCA r₁=**0.69**, perm-p=**0.04**) — but **collapses to the permutation null after
+  > deconfounding age+sex+meanFD+site** (r₁=**0.51**, perm-p=**0.30**), and the
+  > out-of-sample ridge **ΔR² of EEG over the confounds is ≈0 (−0.025)**. FC test-
+  > retest reliability 0.555 caps the ceiling. **Verdict: no EEG-specific cross-modal
+  > signal beyond developmental confounds** — the EEG→fMRI instantiation of the §4
+  > identity-trap lesson (here the confound is *age/site* in a 5–21 cohort, not
+  > subject identity). An honest negative the field's headline-accuracy papers omit.
+  > (`scripts/run_eeg_to_fmri_hbn_case2.py`; caveat: subject- not family-blocked,
+  > which only makes the null more conservative.)
 - **Source space (OURS):** **WAND MEG** individual source imaging via the
   **Valdés-Sosa / CiftiStorm / VARETA** lineage being ported into neurojax's
   differentiable EMEG-Recon — the bridge to unify interpretable model-driven
@@ -202,6 +214,11 @@ NeuroTechX uniquely ships **both the benchmark and the deconfounding audit**:
 
 ### Maintenance log
 
+- **v0.3 (2026-06-29):** §5 first EMPIRICAL EEG→fMRI result (case #2, n=804): raw
+  cross-subject REVE→FC CCA r₁=0.69 (p=0.04) collapses to 0.51 (p=0.30, n.s.) after
+  deconfounding age+sex+meanFD+site; ridge ΔR²≈0. Honest confound-mediated null.
+  (`scripts/run_eeg_to_fmri_hbn_case2.py`; ids recovered + age-validated to 1e-15;
+  C-PAC CC200 FC for 807 EEG∩C-PAC subjects.)
 - **v0.2 (2026-06-29):** §2 paradigm-shift narrative + 16-model zoo + per-domain
   advances populated from the 7-lens survey sweep (wf_2c2b3461, all lenses
   substantive); §4 sharpened with Brookshire/FMScope numbers; §5 frontiers + §6
