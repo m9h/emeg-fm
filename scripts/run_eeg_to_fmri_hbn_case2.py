@@ -18,6 +18,9 @@ subject-level, not family-blocked -- a known (mildly optimistic) refinement.
 
 Run after pull_hbn_cc200.py writes /mnt/t9/hbn_cc200_fc.npz.
 """
+import os
+import sys
+
 import numpy as np
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import PCA
@@ -27,8 +30,36 @@ from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
 RNG = np.random.default_rng(0)
-KX = KY = 50          # PCA dims before CCA (n>>k keeps CCA well-posed)
 N_PERM = 1000
+
+# Principled PCA rank: reuse the ecosystem's Gavish-Donoho optimal hard threshold
+# (smni-cmi clean.gavish_donoho_rank -- documented for exactly MIGP/PLSC/CCA dims,
+# NOT ICA). Replaces the ad-hoc KX=KY=50. Falls back to the same omega(beta)*median
+# rule inline if the cross-repo import is unavailable.
+sys.path.insert(0, os.path.expanduser("~/Workspace/smni-cmi/src"))
+try:
+    from smni_cmi.clean import gavish_donoho_rank
+except Exception:
+    gavish_donoho_rank = None
+
+
+def _gd_inline(s, m, n):
+    beta = min(m, n) / max(m, n)
+    omega = 0.56 * beta ** 3 - 0.95 * beta ** 2 + 1.82 * beta + 1.43
+    return int(max(2, (s > omega * np.median(s)).sum()))
+
+
+def gd_rank(M):
+    """Gavish-Donoho optimal rank of a z-scored data matrix (prefers the smni-cmi
+    function; identical omega(beta)*median rule inline as fallback)."""
+    s = np.linalg.svd(StandardScaler().fit_transform(M), compute_uv=False)
+    if gavish_donoho_rank is not None:
+        try:
+            return max(2, min(int(gavish_donoho_rank(s, M.shape[0], M.shape[1])),
+                              len(s) - 1))
+        except Exception:
+            pass
+    return min(_gd_inline(s, M.shape[0], M.shape[1]), len(s) - 1)
 
 # --- load + align on the EEG order ------------------------------------------
 emb = np.load("/mnt/t9/reve_hbn_emb.npz")
@@ -80,6 +111,12 @@ rel = np.array([[1.0 if str(rel_by.get(s, "NA")) == r else 0.0 for r in rels]
 C = np.column_stack([age, age ** 2, sex, fd, rel])
 print(f"confounds: age, age^2, sex, meanFD, {len(rels)} release dummies "
       f"-> C={C.shape}; age {age.min():.1f}-{age.max():.1f}", flush=True)
+
+# --- principled PCA rank (Gavish-Donoho) instead of the ad-hoc 50 -----------
+KX, KY = gd_rank(X), gd_rank(Y)
+src = "smni-cmi gavish_donoho_rank" if gavish_donoho_rank else "inline GD rule"
+print(f"[rank] Gavish-Donoho optimal rank ({src}): REVE KX={KX}, FC KY={KY} "
+      f"(was ad-hoc 50)", flush=True)
 
 # --- 1. reliability ceiling -------------------------------------------------
 shr = np.array([np.corrcoef(R1[i], R2[i])[0, 1] for i in range(len(cohort))])

@@ -3,7 +3,7 @@
 ### A NeuroTechX White Paper — the successor to Roy et al. (2019)
 
 > **Living document.** Maintained by the EMEG-FM research cron and deepened by
-> periodic multi-agent survey sweeps. Status: **v0.2 — survey populated** (§2/zoo
+> periodic multi-agent survey sweeps. Status: **v0.4 — survey + first empirical result** (§2/zoo
 > from sweep wf_2c2b3461). Last deepened: 2026-06-29.
 >
 > **[OURS]** marks sections grounded in original NeuroTechX work (benchmarks +
@@ -133,16 +133,20 @@ The field scaled, then turned a rigor lens on itself — and the lens is ours.
   behind the NeurIPS-2025 EEG Foundation Challenge.
 
   > **First empirical result (case #2, n=804).** Frozen **REVE resting-EEG embedding
-  > → CC200 resting FC**, cross-subject. The raw canonical correlation looks real
-  > (CCA r₁=**0.69**, perm-p=**0.04**) — but **collapses to the permutation null after
-  > deconfounding age+sex+meanFD+site** (r₁=**0.51**, perm-p=**0.30**), and the
-  > out-of-sample ridge **ΔR² of EEG over the confounds is ≈0 (−0.025)**. FC test-
-  > retest reliability 0.555 caps the ceiling. **Verdict: no EEG-specific cross-modal
-  > signal beyond developmental confounds** — the EEG→fMRI instantiation of the §4
-  > identity-trap lesson (here the confound is *age/site* in a 5–21 cohort, not
-  > subject identity). An honest negative the field's headline-accuracy papers omit.
-  > (`scripts/run_eeg_to_fmri_hbn_case2.py`; caveat: subject- not family-blocked,
-  > which only makes the null more conservative.)
+  > → CC200 resting FC**, cross-subject. The trustworthy, rank-robust measure is
+  > unambiguous: the **out-of-sample ridge ΔR² of EEG over age+sex+meanFD+site is ≈0**
+  > (−0.025 at an eyeballed 50-component cut, −0.018 at the principled **Gavish–Donoho
+  > rank** of 137/202). The in-sample CCA canonical correlation, by contrast, is
+  > **dimensionality-fragile**: at the ad-hoc k=50 the raw r₁=0.69 looked nominally
+  > significant (perm-p=0.04) but did not survive deconfounding (0.51, p=0.30); under
+  > the principled GD rank the canonical r *saturates* (~0.89 — CCA overfitting 137+202
+  > dims against n=804) and neither raw nor deconfounded is significant (p≈0.19/0.16).
+  > **Verdict: no cross-subject EEG→FC signal** — and, fittingly, our *own* pipeline
+  > demonstrates the analytical-flexibility lesson (§7) in miniature: a "significant"
+  > CCA p that evaporates under a principled dimensionality rule, with only the held-
+  > out ΔR² telling the stable truth. FC reliability 0.555.
+  > (`scripts/run_eeg_to_fmri_hbn_case2.py`; Gavish–Donoho rank via the `smni-cmi`
+  > stack; caveat: subject- not family-blocked.)
 - **Source space (OURS):** **WAND MEG** individual source imaging via the
   **Valdés-Sosa / CiftiStorm / VARETA** lineage being ported into neurojax's
   differentiable EMEG-Recon — the bridge to unify interpretable model-driven
@@ -214,6 +218,12 @@ NeuroTechX uniquely ships **both the benchmark and the deconfounding audit**:
 
 ### Maintenance log
 
+- **v0.4 (2026-06-29):** §5 case #2 hardened with the principled **Gavish–Donoho
+  rank** (`smni-cmi gavish_donoho_rank`, 137/202 vs ad-hoc 50). Lesson: the in-sample
+  CCA p is dimensionality-fragile (the one "significant" raw p=0.04 at k=50 evaporates
+  at GD rank, p≈0.19); only the rank-robust held-out ΔR²≈0 is trustworthy → still a
+  clean no-signal verdict, now also an in-house demonstration of the §7 analytical-
+  flexibility point.
 - **v0.3 (2026-06-29):** §5 first EMPIRICAL EEG→fMRI result (case #2, n=804): raw
   cross-subject REVE→FC CCA r₁=0.69 (p=0.04) collapses to 0.51 (p=0.30, n.s.) after
   deconfounding age+sex+meanFD+site; ridge ΔR²≈0. Honest confound-mediated null.
