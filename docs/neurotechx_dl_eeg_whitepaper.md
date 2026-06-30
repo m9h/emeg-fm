@@ -3,8 +3,8 @@
 ### A NeuroTechX White Paper — the successor to Roy et al. (2019)
 
 > **Living document.** Maintained by the EMEG-FM research cron and deepened by
-> periodic multi-agent survey sweeps. Status: **v0.5 — survey + benchmark (§3/§4) + first empirical result** (§2/zoo
-> from sweep wf_2c2b3461). Last deepened: 2026-06-29.
+> periodic multi-agent survey sweeps. Status: **v0.6 — survey + benchmark + first empirical result** (§2/zoo
+> from sweep wf_2c2b3461). Last deepened: 2026-06-30.
 >
 > **[OURS]** marks sections grounded in original NeuroTechX work (benchmarks +
 > audits) — the reason this is a *white paper*, not another survey.
@@ -176,6 +176,17 @@ gating discipline is the prescriptive point Roy 2019 couldn't make.
   67%); EEG→video (EEG2Video); MindEye2 sets the fMRI-side bar. **Caveat the survey
   flags:** teacher-forcing inflates EEG-to-text >3×; noise baselines often rival real
   EEG — the same evaluation-hygiene problem as §4.
+- **EEG→fMRI *prediction*/synthesis (survey):** the model class that predicts BOLD
+  *from* EEG — **NeuroBOLT** ([arXiv:2410.05341](https://arxiv.org/abs/2410.05341),
+  NeurIPS 2024): temporal-spatial + spectral patch encoders trained on **simultaneous
+  EEG-fMRI** (24 subjects × 2×20 min resting eyes-closed), +12.3%/+9.7% ROI-correlation
+  over the next-best encoders; the Calhas
+  [bespoke-NN-vs-frozen-FM-adapter fork](https://www.frontiersin.org/journals/systems-biology/articles/10.3389/fsysb.2025.1715692/full)
+  (Frontiers 2025); a pre-trained **EEG→MEG generative** framework
+  ([arXiv:2602.06990](https://arxiv.org/abs/2602.06990), 2026). **Key constraint:** all
+  require *simultaneous* EEG-fMRI/MEG — which is precisely why our cross-subject HBN
+  work below (HBN is non-simultaneous) can only test trait-level *association*, not BOLD
+  *synthesis*. These two regimes must not be conflated.
 - **Multimodal (OURS):** cross-subject **EEG→fMRI on HBN** — sweep wf_e512e1b2
   verified ~1,224 subjects, non-simultaneous → **11 ranked cross-subject cases**
   (`examples/eeg_to_fmri_hbn.py`); the Calhas-2025 "two strategies" fork (bespoke NN
@@ -268,6 +279,12 @@ NeuroTechX uniquely ships **both the benchmark and the deconfounding audit**:
 
 ### Maintenance log
 
+- **v0.6 (2026-06-30, cron):** §5 refreshed with the EEG→fMRI **prediction/synthesis**
+  model class (NeuroBOLT — simultaneous EEG-fMRI, 24 subj, +12% ROI-corr; Calhas "two
+  strategies"; EEG→MEG generative arXiv:2602.06990), separating *synthesis* (needs
+  simultaneous data) from our cross-subject *association* work. Survey also flagged, for
+  next cycle: **BrainOmni** (unified EEG+MEG FM, NeurIPS 2025) → §2 zoo; **Brain2Qwerty
+  v2** + BCBL open dataset (2026-06-25) → §5 update.
 - **v0.5 (2026-06-29):** §3 quantified — Table 1 (9-model WeightWatcher α; BENDR 68%
   α<2 vs REVE/LaBraM/LUNA/LuMamba ≤10%) + Table 2 (brain-age: FM *trails* classical on
   LEMON R²=0.26 vs 0.54, *ties* on HBN) — the FM-doesn't-beat-classical backbone. §4
