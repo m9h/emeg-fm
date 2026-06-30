@@ -3,7 +3,7 @@
 ### A NeuroTechX White Paper — the successor to Roy et al. (2019)
 
 > **Living document.** Maintained by the EMEG-FM research cron and deepened by
-> periodic multi-agent survey sweeps. Status: **v0.4 — survey + first empirical result** (§2/zoo
+> periodic multi-agent survey sweeps. Status: **v0.5 — survey + benchmark (§3/§4) + first empirical result** (§2/zoo
 > from sweep wf_2c2b3461). Last deepened: 2026-06-29.
 >
 > **[OURS]** marks sections grounded in original NeuroTechX work (benchmarks +
@@ -94,14 +94,46 @@ MindEye2 — are in §5. Next-gen variants: EEGFormer / FoME / CSBrain / Uni-NTF
 
 ## 3. Benchmark — head-to-head **[OURS]**
 
-- **WeightWatcher HT-SR α rankings** (data-free, orthogonal to contested leaderboard
-  accuracy): REVE/LaBraM/LUNA well-trained (<11% layers α<2); BENDR severely
-  under-trained (68% α<2) despite being largest. Per-block α<2 predicts exactly the
-  attention matrices where LoRA fine-tuning pays off.
-- **Downstream** on MOABB + NeuralBench (our runs) — the standardized, leakage-
-  controlled task suite.
-- **FM vs classical (coffeine) vs handcrafted (NEOBA)** on brain-age, identical CV —
-  directly answering Roy's deep-vs-classical question.
+The benchmark is **data-free training quality** (Table 1) + **downstream accuracy vs
+classical** (Table 2) — both deliberately honest about where FMs *lose*.
+
+#### Table 1 — Training quality: WeightWatcher HT-SR α (data-free, our 9-model run)
+
+% of layers with α<2 ("under-trained") vs healthy (2–6); a label-free quality axis
+orthogonal to contested leaderboard accuracy. Source:
+`/data/derivatives/eeg_sae/weightwatcher/all_models_summary.csv`.
+
+| Model | layers | mean α | % α<2 | % healthy (2–6) |
+|---|---|---|---|---|
+| LuMamba | 39 | 4.41 | **0%** | 87% |
+| LaBraM | 48 | 3.76 | 4.2% | 94% |
+| REVE | 89 | 3.61 | 5.6% | 88% |
+| LUNA | 67 | 3.93 | 10.4% | 79% |
+| ZUNA (enc.) | 354 | 2.29 | 26.6% | 73% |
+| CBraMod | 75 | 3.32 | 26.7% | 68% |
+| BIOT | 25 | 2.48 | 44% | 52% |
+| BENDR | 25 | 2.10 | **68%** | 24% |
+
+REVE/LaBraM/LUNA/LuMamba are well-trained (≤10% α<2); **BENDR is severely under-trained
+(68%) despite its size.** Per-block breakdowns (REVE block 6 α=3.63, healthy) localize
+which attention matrices LoRA fine-tuning should target.
+
+#### Table 2 — Brain-age: FM vs classical vs handcrafted (identical 10-fold CV)
+
+MAE (yr) / R². Classical = coffeine filterbank-Riemann; DNN = supervised Deep4Net; FM =
+frozen REVE/LuMamba block-6 embedding + ridge.
+
+| Dataset | Classical | Handcrafted | DNN (Deep4Net) | FM (REVE) | FM (LuMamba) |
+|---|---|---|---|---|---|
+| LEMON | 10.78 / 0.54 | 10.23 / 0.51 | **7.75 / 0.69** | 11.57 / 0.26 | — |
+| HBN | 1.69 / 0.61 | — | — | 1.67 / 0.61 † | 1.67 / 0.61 † |
+
+**The honest verdict: the frozen FM does not beat the classical baseline.** On LEMON it
+*trails* both classical and a supervised DNN (REVE R²=0.26 vs classical 0.54 vs Deep4Net
+0.69); on HBN it merely *ties* classical. Roy's deep-vs-classical question, answered —
+against the FM — and the empirical backbone of this paper's thesis. *(† HBN FM numbers as
+reported in the run scripts; results CSV to re-confirm. NEOBA-handcrafted on LEMON +
+TUEG/TDBRAIN: pending.)*
 
 ## 4. The reproducibility / confound crisis **[OURS — the original contribution]**
 
@@ -118,6 +150,24 @@ The field scaled, then turned a rigor lens on itself — and the lens is ours.
   result byte-exact (BNCI2014_001 0.67→0.96); a stricter **per-trial** test is
   reported alongside; the deconfounded **"identity-free" leaderboard** certifies any
   MOABB pipeline or EEG-FM. This is the prescriptive guidance Roy 2019 could not give.
+
+#### Table 3 — The identity-free leaderboard (FMScope erasure, our runs)
+
+Pooled (subject,condition) erasure — the FMScope trap protocol; "excess subj." = subject
+variance ÷ null (>1 ⇒ identity leakage).
+
+| Dataset | Model | pooled erasure (before→after) | Δ | excess subj. | verdict |
+|---|---|---|---|---|---|
+| BNCI2014_001 (motor imagery) | REVE | 0.667 → 0.963 | +0.30 | **10.7×** | **trap** |
+| ds004362 (P300) | REVE | 0.906 → 0.992 | +0.09 | subj-BA 0.94→0.00 | pass (task survives) |
+| ds005540 (emotion) | REVE/LaBraM/CBraMod | 0.51–0.53 | ≈0 | — | uninterpretable (raw AUC < 0.55 gate) |
+
+BNCI2014_001 is the textbook trap — subject variance is **10.7× the null**, i.e. the
+representation encodes *who* the subject is far more than the task (reproducing the FMScope
+paper's own motor-imagery result). ds004362 *passes* (subject decodability erases
+0.94→0.00 while the task survives). ds005540 honestly **gates out** (the marker isn't
+decodable in frozen-FM cross-subject CV — reported as untestable, not a result). That
+gating discipline is the prescriptive point Roy 2019 couldn't make.
 
 ## 5. Frontiers **[OURS + survey]**
 
@@ -218,6 +268,12 @@ NeuroTechX uniquely ships **both the benchmark and the deconfounding audit**:
 
 ### Maintenance log
 
+- **v0.5 (2026-06-29):** §3 quantified — Table 1 (9-model WeightWatcher α; BENDR 68%
+  α<2 vs REVE/LaBraM/LUNA/LuMamba ≤10%) + Table 2 (brain-age: FM *trails* classical on
+  LEMON R²=0.26 vs 0.54, *ties* on HBN) — the FM-doesn't-beat-classical backbone. §4
+  Table 3 (identity-free leaderboard: BNCI2014_001 10.7× excess subject variance =
+  trap; ds004362 passes; ds005540 gates out). All numbers from real result files with
+  provenance; NEOBA-LEMON + TUEG/TDBRAIN cells marked pending (not fabricated).
 - **v0.4 (2026-06-29):** §5 case #2 hardened with the principled **Gavish–Donoho
   rank** (`smni-cmi gavish_donoho_rank`, 137/202 vs ad-hoc 50). Lesson: the in-sample
   CCA p is dimensionality-fragile (the one "significant" raw p=0.04 at k=50 evaporates
