@@ -14,8 +14,10 @@ import glob
 import os
 import subprocess
 
-BIDS = "/data/raw/hbn-bids"
-FSROOT = "/data/derivatives/volume_conduction/fastsurfer"          # FastSurfer FS subject dirs (from x86)
+BIDS = os.environ.get("BIDS", "/data/raw/hbn-bids")
+# FreeSurfer subject dirs: FastSurfer (x86 track) by default, or set FSROOT to an FS6 recon-all tree
+# (e.g. /data/raw/hbn-freesurfer) to harvest gold-standard surfaces with no recompute.
+FSROOT = os.environ.get("FSROOT", "/data/derivatives/volume_conduction/fastsurfer")
 OUT = "/data/derivatives/volume_conduction/surface_forward"
 SIMNIBS_ENV = "/home/mhough/miniforge3/envs/simnibs_test_v11"
 SIMNIBS_PY = f"{SIMNIBS_ENV}/bin/python"
@@ -54,12 +56,13 @@ def _t1(sub: str):
 
 def run_subject(sub: str):
     subID = sub.replace("sub-", "")
-    t1 = _t1(sub)
     fsdir = f"{FSROOT}/{sub}"
+    # prefer the BIDS T1; fall back to the recon-all input (raw.nii.gz) for FS6 trees
+    t1 = _t1(sub) or (f"{fsdir}/raw.nii.gz" if os.path.exists(f"{fsdir}/raw.nii.gz") else None)
     if not t1:
-        print(f"[skip {sub}] no raw T1"); return
+        print(f"[skip {sub}] no T1 (BIDS or {fsdir}/raw.nii.gz)"); return
     if not os.path.exists(f"{fsdir}/surf/lh.pial"):
-        print(f"[skip {sub}] no FastSurfer surfaces at {fsdir}"); return
+        print(f"[skip {sub}] no surfaces at {fsdir}"); return
     subdir = f"{OUT}/{sub}"
     m2m = f"{subdir}/m2m_{subID}"
     fem = f"{subdir}/leadfield"

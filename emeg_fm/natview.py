@@ -64,6 +64,26 @@ def bin_to_tr(x, sfreq, tr, n_tr):
     return x[:usable].reshape(-1, spt).mean(axis=1)
 
 
+def bin_by_triggers(x, trigger_samples, n_tr=None):
+    """Average a per-sample signal within each inter-volume-trigger window.
+
+    ``trigger_samples`` are the EEG sample indices of the fMRI volume onsets (the
+    R128 scanner triggers in natview). Window ``i`` is ``[trig[i], trig[i+1])``; the
+    last runs to the end. Samples BEFORE the first trigger (pre-scan EEG) are
+    dropped -- this is the shared-clock alignment simultaneous-EEG-fMRI fusion needs.
+    Returns one mean per trigger (optionally truncated to ``n_tr``).
+    """
+    x = np.asarray(x, float)
+    trig = np.asarray(trigger_samples, int)
+    edges = np.append(trig, len(x))
+    out = []
+    for i in range(len(trig)):
+        lo, hi = edges[i], min(edges[i + 1], len(x))
+        out.append(x[lo:hi].mean() if hi > lo else np.nan)
+    b = np.asarray(out, float)
+    return b if n_tr is None else b[:n_tr]
+
+
 def occipital_mask(mask, affine, frac=0.33):
     """Posterior ``frac`` of a brain mask (visual-cortex heuristic), orientation-robust.
 

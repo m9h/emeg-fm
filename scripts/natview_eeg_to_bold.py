@@ -55,7 +55,26 @@ def mcflirt(bold_path, workdir):
     return img.get_fdata(), np.loadtxt(out + ".par"), img.affine
 
 
-def bandpower_per_tr(raw, n_tr, ch_idx=None):
+def volume_trigger_samples(eeg_path, sfreq, trigger="R128"):
+    """R128 fMRI-volume-onset EEG sample indices from the BIDS events.tsv (shared clock)."""
+    ev = eeg_path.replace("_eeg.set", "_events.tsv")
+    onsets, values = [], []
+    with open(ev) as fh:
+        cols = fh.readline().rstrip("\n").split("\t")
+        oi, vi = cols.index("onset"), cols.index("value")
+        for line in fh:
+            f = line.rstrip("\n").split("\t")
+            onsets.append(float(f[oi]))
+            values.append(f[vi])
+    onsets, values = np.array(onsets), np.array(values)
+    samp = (onsets[values == trigger] * sfreq).round().astype(int)
+    if samp.size == 0:
+        raise ValueError(f"no {trigger} volume triggers in {ev}")
+    return np.sort(samp)
+
+
+def bandpower_per_tr(raw, trig, n_tr, ch_idx=None):
+    """Band-power binned BETWEEN R128 volume triggers (trigger-aligned, pre-scan dropped)."""
     x = raw.get_data()
     if ch_idx is not None:
         x = x[ch_idx]
@@ -64,7 +83,7 @@ def bandpower_per_tr(raw, n_tr, ch_idx=None):
     for lo, hi in BANDS.values():
         b, a = butter(4, [lo / (sf / 2), hi / (sf / 2)], btype="band")
         env = np.abs(hilbert(filtfilt(b, a, x, axis=1), axis=1)) ** 2
-        feats.append(nv.bin_to_tr(env.mean(0), sf, TR, n_tr))
+        feats.append(nv.bin_by_triggers(env.mean(0), trig, n_tr))
     m = min(len(f) for f in feats)
     return np.column_stack([f[:m] for f in feats])
 
@@ -115,13 +134,17 @@ def main():
 
     raw = mne.io.read_raw_eeglab(eeg_path, preload=True)
     occ_ch = nv.select_occipital_channels(raw.ch_names)
+    trig = volume_trigger_samples(eeg_path, raw.info["sfreq"])
     print(f"[eeg] {len(raw.ch_names)}ch @ {raw.info['sfreq']}Hz | occipital ch: "
           f"{[raw.ch_names[i] for i in occ_ch]}", flush=True)
-    Xb_all = bandpower_per_tr(raw, d.shape[3])
-    print(f"\n=== natview EEG->BOLD  {sub} {ses} task-{TASK} ===")
+    print(f"[sync] {len(trig)} R128 volume triggers | first at "
+          f"{trig[0] / raw.info['sfreq']:.1f}s (pre-scan EEG dropped) | BOLD {d.shape[3]} TRs",
+          flush=True)
+    Xb_all = bandpower_per_tr(raw, trig, d.shape[3])
+    print(f"\n=== natview EEG->BOLD  {sub} {ses} task-{TASK} (trigger-aligned) ===")
     evaluate("all-ch -> GLOBAL", Xb_all, y_glob)
     if occ_ch:
-        Xb_occ = bandpower_per_tr(raw, d.shape[3], occ_ch)
+        Xb_occ = bandpower_per_tr(raw, trig, d.shape[3], occ_ch)
         evaluate("occ-ch -> OCCIPITAL", Xb_occ, y_occ)   # classic alpha<->visual test
     else:
         print("  (no occipital channels matched -> skipping occipital test)")

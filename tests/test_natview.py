@@ -76,6 +76,24 @@ def test_occipital_mask_is_orientation_robust():
     assert ys.max() == 9                     # posterior now = HIGH voxel-Y
 
 
+def test_bin_by_triggers_averages_between_volume_triggers():
+    # 3 volume triggers at samples 0/10/20; signal is constant within each window
+    x = np.concatenate([np.full(10, 1.0), np.full(10, 2.0), np.full(10, 3.0)])
+    trig = np.array([0, 10, 20])
+    b = nv.bin_by_triggers(x, trig)
+    assert len(b) == 3                         # one value per volume trigger
+    assert np.allclose(b, [1, 2, 3])           # last window runs to the end
+
+
+def test_bin_by_triggers_excludes_pre_scan_samples():
+    # the natview case: EEG starts BEFORE the scan -> pre-first-trigger samples must drop
+    x = np.concatenate([np.full(5, 99.0), np.full(10, 1.0), np.full(10, 2.0)])
+    trig = np.array([5, 15])                   # first fMRI volume onset at sample 5
+    b = nv.bin_by_triggers(x, trig)
+    assert len(b) == 2
+    assert np.allclose(b, [1, 2])              # the 99.0 pre-scan region is excluded
+
+
 def test_select_occipital_channels():
     chs = ["Fp1", "Cz", "O1", "Oz", "O2", "PO7", "PO8", "T7"]
     idx = nv.select_occipital_channels(chs)
