@@ -91,26 +91,41 @@ def load_trait_labels(
     return out
 
 
-def _find_vhdr(bids_root: str, sid: int, task: str):
-    """First BrainVision header for ``sub-<sid>`` and ``task`` (ses-1 preferred)."""
-    pat = os.path.join(
-        bids_root, f"sub-{sid}", "ses-*", "eeg",
-        f"sub-{sid}_ses-*_task-{task}_eeg.vhdr",
-    )
-    hits = sorted(glob.glob(pat))
-    return hits[0] if hits else None
+def _find_raw(bids_root: str, sid: int, task: str):
+    """First raw EEG for ``sub-<sid>`` and ``task`` (ses-1 preferred).
+
+    Prefers **BDF/BDF+** (TDBRAIN-V3.1's lossless format) then legacy BrainVision,
+    so the same cohort builder works across the format switch.
+    """
+    for ext in ("bdf", "vhdr"):
+        pat = os.path.join(
+            bids_root, f"sub-{sid}", "ses-*", "eeg",
+            f"sub-{sid}_ses-*_task-{task}_eeg.{ext}",
+        )
+        hits = sorted(glob.glob(pat))
+        if hits:
+            return hits[0]
+    return None
 
 
-def _load_windows(vhdr, channels, sfreq_out, clamp, epoch_sec):
+def _read_raw(path):
+    """Format-dispatch raw reader: BDF/BDF+ (V3.1) vs BrainVision (legacy)."""
+    import mne
+
+    if path.lower().endswith(".bdf"):
+        return mne.io.read_raw_bdf(path, preload=True, verbose="error")
+    return mne.io.read_raw_brainvision(path, preload=True, verbose="error")
+
+
+def _load_windows(path, channels, sfreq_out, clamp, epoch_sec):
     """Load one recording, pick the scalp montage, window it, REVE-normalize.
 
     Returns ``(windows (n_win, C, T) float32, ch_names)`` or ``(None, present)``
     if the file lacks the full montage or is too short for one window.
     """
-    import mne
     from emeg_fm.alljoined import ReveInputNorm
 
-    raw = mne.io.read_raw_brainvision(vhdr, preload=True, verbose="error")
+    raw = _read_raw(path)
     present = [c for c in channels if c in raw.ch_names]
     if len(present) != len(channels):  # keep n_channels uniform across the cohort
         return None, present
@@ -148,7 +163,8 @@ def build_tdbrain_cohort(
     Parameters
     ----------
     bids_root : str
-        TDBRAIN BIDS tree (``sub-*/ses-*/eeg/*.vhdr``).
+        TDBRAIN BIDS tree (``sub-*/ses-*/eeg/*_eeg.{bdf,vhdr}``; BDF/BDF+ = V3.1,
+        BrainVision = legacy — auto-detected, BDF preferred).
     participants_tsv : str
         DUA-gated label table (Synapse syn26468893). Must contain
         ``participant_id`` + ``label_col``.
@@ -191,10 +207,10 @@ def build_tdbrain_cohort(
         lbl = labels[sid]
         if max_per_class is not None and per_class[lbl] >= max_per_class:
             continue
-        vhdr = _find_vhdr(bids_root, sid, task)
-        if vhdr is None:
+        raw_path = _find_raw(bids_root, sid, task)
+        if raw_path is None:
             continue
-        windows, _present = _load_windows(vhdr, channels, sfreq_out, clamp, epoch_sec)
+        windows, _present = _load_windows(raw_path, channels, sfreq_out, clamp, epoch_sec)
         if windows is None or windows.shape[0] == 0:
             continue
         recordings.append((int(sid), int(lbl), windows))
