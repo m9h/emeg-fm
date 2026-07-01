@@ -56,3 +56,27 @@ def test_bin_to_tr_averages_windows():
     x = np.concatenate([np.full(10, 1.0), np.full(10, 2.0), np.full(10, 3.0)])
     b = nv.bin_to_tr(x, sf, tr, n_tr)
     assert np.allclose(b, [1, 2, 3])
+
+
+def test_occipital_mask_selects_posterior_by_world_y():
+    mask = np.ones((2, 10, 2), bool)
+    affine = np.eye(4)                       # world-Y == voxel-Y (anterior = high Y)
+    occ = nv.occipital_mask(mask, affine, frac=0.3)
+    ys = np.where(occ.any(axis=(0, 2)))[0]
+    assert ys.min() == 0 and ys.max() <= 3   # posterior (low world-Y) kept
+    assert not occ[:, 9, :].any()            # anterior dropped
+
+
+def test_occipital_mask_is_orientation_robust():
+    mask = np.ones((2, 10, 2), bool)
+    affine = np.eye(4)
+    affine[1, 1] = -1                        # voxel-Y up -> world-Y DOWN (flipped)
+    occ = nv.occipital_mask(mask, affine, frac=0.3)
+    ys = np.where(occ.any(axis=(0, 2)))[0]
+    assert ys.max() == 9                     # posterior now = HIGH voxel-Y
+
+
+def test_select_occipital_channels():
+    chs = ["Fp1", "Cz", "O1", "Oz", "O2", "PO7", "PO8", "T7"]
+    idx = nv.select_occipital_channels(chs)
+    assert sorted(chs[i] for i in idx) == ["O1", "O2", "Oz", "PO7", "PO8"]

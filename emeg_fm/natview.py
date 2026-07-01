@@ -62,3 +62,28 @@ def bin_to_tr(x, sfreq, tr, n_tr):
     spt = int(round(tr * sfreq))
     usable = min(len(x) // spt, n_tr) * spt
     return x[:usable].reshape(-1, spt).mean(axis=1)
+
+
+def occipital_mask(mask, affine, frac=0.33):
+    """Posterior ``frac`` of a brain mask (visual-cortex heuristic), orientation-robust.
+
+    Uses the affine to work in world space, where posterior = low world-Y (RAS), so it is
+    correct regardless of how the A-P axis maps onto the voxel grid.
+    """
+    mask = np.asarray(mask, bool)
+    aff = np.asarray(affine, float)
+    idx = np.array(np.where(mask)).T                       # (n_vox, 3) voxel coords
+    world = idx @ aff[:3, :3].T + aff[:3, 3]               # -> world coords
+    y = world[:, 1]
+    keep = y <= y.min() + frac * (y.max() - y.min())
+    out = np.zeros_like(mask)
+    kept = idx[keep]
+    out[kept[:, 0], kept[:, 1], kept[:, 2]] = True
+    return out
+
+
+def select_occipital_channels(ch_names):
+    """Indices of occipital / parieto-occipital EEG channels (O1/O2/Oz/PO*)."""
+    import re
+    pat = re.compile(r"^(O[0-9z]|PO[0-9z]+)$", re.I)
+    return [i for i, c in enumerate(ch_names) if pat.match(str(c))]
