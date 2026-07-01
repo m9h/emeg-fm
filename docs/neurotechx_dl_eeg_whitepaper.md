@@ -3,8 +3,8 @@
 ### A NeuroTechX White Paper — the successor to Roy et al. (2019)
 
 > **Living document.** Maintained by the EMEG-FM research cron and deepened by
-> periodic multi-agent survey sweeps. Status: **v0.7 — + within-subject simultaneous
-> EEG→BOLD** (§5: natview coupling replicates + REVE beats band-power). Last deepened: 2026-07-01.
+> periodic multi-agent survey sweeps. Status: **v0.8 — + temporal-encoder replaceability
+> (§6.1)**, on v0.7's within-subject EEG→BOLD (§5). Last deepened: 2026-07-01.
 >
 > **[OURS]** marks sections grounded in original NeuroTechX work (benchmarks +
 > audits) — the reason this is a *white paper*, not another survey.
@@ -242,7 +242,15 @@ gating discipline is the prescriptive point Roy 2019 couldn't make.
 ## 6. Open problems (field-wide)
 
 1. **FMs don't reliably beat shallow/Riemannian baselines** once evaluated fairly
-   (~0.9–1.2% gain at >2000× params; frozen linear probes near chance).
+   (~0.9–1.2% gain at >2000× params; frozen linear probes near chance). *New evidence the
+   redundancy reaches inside the FM: a controlled comparison of temporal encoders
+   ([2606.30104](https://arxiv.org/abs/2606.30104), 2026-06) finds a **frozen general-purpose
+   time-series model (MOMENT)** transfers as the temporal feature extractor with **no
+   EEG-specific pretraining**, and a plain linear/conv encoder is competitive on motor
+   imagery — only emotion recognition rewards richer temporal modelling. I.e. EEG-specific
+   temporal pretraining is **not strictly necessary**; its value is task-dependent — the same
+   shape as our §5 finding that a frozen embedding beats hand-crafted features only in a
+   paired, task-dependent sense.*
 2. **No EEG scaling law** — more hours/params don't consistently help; mechanism
    unexplained.
 3. **The subject-identity confound is the deepest open problem** (see §4).
@@ -303,6 +311,15 @@ NeuroTechX uniquely ships **both the benchmark and the deconfounding audit**:
 
 ### Maintenance log
 
+- **v0.8 (2026-07-01, cron):** §6.1 deepened with the survey item v0.7 flagged —
+  **Temporal Feature Extractors in EEG FMs** ([2606.30104](https://arxiv.org/abs/2606.30104)):
+  a controlled comparison finds a **frozen general-purpose time-series model (MOMENT)**
+  transfers as the FM's temporal encoder with **no EEG-specific pretraining**, and a plain
+  linear/conv encoder is competitive on motor imagery (only emotion recognition rewards
+  richer temporal modelling) → EEG-specific temporal pretraining is **not strictly
+  necessary**; the redundancy reaches *inside* the FM, and its value is task-dependent — the
+  same shape as our §5 REVE-vs-band-power result. (No new compute; integration of the flagged
+  survey hit.)
 - **v0.7 (2026-07-01, cron):** §5 — **within-subject *simultaneous* EEG→BOLD on natview**
   added, the physiological complement to the HBN cross-subject *association* null. Scanner-
   trigger (R128) alignment recovers the **Valdés-Sosa negative occipital-alpha↔BOLD coupling**
