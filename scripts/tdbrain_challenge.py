@@ -161,17 +161,113 @@ TARGET_SPEC = {
     "treatment": {"col": "Responder", "positive": {"1", "RESPONDER", "REMITTER", "R"}},
 }
 
+# ---------- V3.1 multi-target challenge tracks ----------
+# One submission per track fills several template columns at once. The Discovery
+# datasheet column names + label coding below are DEFAULTS: override per-target
+# with --<target>-col once the real datasheet lands (its headers/coding are the
+# only unknowns left — the replication template + EEG are decoded above).
+# MDD-Dx track: diagnosis is MDD-vs-CONTROL specifically (not MDD-vs-anything),
+# so Discovery training is filtered to MDD ∪ Control before fitting.
+CHALLENGE_SPEC = {
+    "mdd_dx": {
+        "targets": ["diagnosis", "age", "gender"],
+        "diagnosis": {
+            "col": "indication",
+            "positive": {"MDD", "DEPRESSION", "MDD/DEPRESSION"},
+            "negative": {"HEALTHY", "CONTROL", "HC", "HEALTHY CONTROL"},
+            "is_reg": False,
+        },
+        "age": {"col": "age", "is_reg": True},
+        "gender": {"col": "gender", "positive": {"1", "M", "MALE"}, "is_reg": False},
+    },
+}
+
+
+def _is_number(v):
+    try:
+        float(v)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _challenge_target_vector(labels, sids, tspec):
+    """(y aligned to sids, is_regression) for one challenge head."""
+    col = tspec["col"]
+    if tspec.get("is_reg"):
+        return np.array([float(labels[s][col]) for s in sids]), True
+    pos = {v.upper() for v in tspec["positive"]}
+    y = np.array([1 if str(labels[s].get(col, "")).strip().upper() in pos else 0 for s in sids])
+    return y, False
+
+
+def _eligible_discovery(disc, tspec):
+    """Discovery subject ids usable to train this head (numeric age / valid class)."""
+    col = tspec["col"]
+    if tspec.get("is_reg"):
+        return [s for s in disc if _is_number(disc[s].get(col))]
+    if "negative" in tspec:  # binary vs a SPECIFIC negative class (MDD-vs-Control)
+        valid = {v.upper() for v in tspec["positive"]} | {v.upper() for v in tspec["negative"]}
+        return [s for s in disc if str(disc[s].get(col, "")).strip().upper() in valid]
+    return [s for s in disc if str(disc[s].get(col, "")).strip() not in ("", "n/a", "None")]
+
+
+def run_challenge(a):
+    """Train one head per template target on Discovery, predict the blinded
+    Replication set, fill the multi-target template."""
+    spec = CHALLENGE_SPEC[a.challenge]
+    disc = read_labels(a.discovery_labels)
+    repl_sids = _template_subject_ids(a.template)
+    Xte, repl_kept = build_matrix(a.replication_bids, repl_sids, a.task)  # target-independent
+    if not repl_kept:
+        sys.exit(f"no loadable replication recordings under {a.replication_bids}")
+
+    preds_by_target = {}
+    for tname in spec["targets"]:
+        tspec = dict(spec[tname])
+        override = getattr(a, f"{tname}_col", None)
+        if override:
+            tspec["col"] = override
+        elig = _eligible_discovery(disc, tspec)
+        Xtr, kept = build_matrix(a.discovery_bids, elig, a.task)
+        if len(kept) < 10:
+            print(f"[challenge] SKIP {tname}: only {len(kept)} Discovery recordings (col={tspec['col']!r})")
+            continue
+        ytr, is_reg = _challenge_target_vector({s: disc[s] for s in kept}, kept, tspec)
+        conf_tr = None
+        if a.deconfound:  # LEACE fits on train confound only; transform needs no test labels
+            conf_tr = np.array([str(disc[s].get(a.deconfound, "")).strip() for s in kept])
+        pred = fit_predict(Xtr, ytr, Xte, is_reg, deconfound=a.deconfound, conf_tr=conf_tr)
+        preds_by_target[tname] = dict(zip(repl_kept, pred))
+        name, val = self_cv(Xtr, ytr, is_reg)
+        bal = "" if is_reg else f" pos={int(ytr.sum())}/{len(ytr)}"
+        print(f"[challenge] {tname}: discovery_n={len(kept)}{bal} internal {name}={val:.3f}")
+
+    if not preds_by_target:
+        sys.exit("no head could be trained — check --discovery-labels column mapping")
+    fill_challenge_template(a.template, a.out, preds_by_target)
+    print(f"[challenge] wrote {a.out} — {len(repl_kept)}/{len(repl_sids)} replication subjects, "
+          f"targets={list(preds_by_target)}")
+
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--target", choices=list(TARGET_SPEC), default="age")
+    ap.add_argument("--challenge", choices=list(CHALLENGE_SPEC), default=None,
+                    help="multi-target track: train all template columns at once (mdd_dx)")
     ap.add_argument("--task", default="restEC")
     ap.add_argument("--self-cv", action="store_true", help="internal LOO metric on one labeled cohort")
     ap.add_argument("--bids"); ap.add_argument("--participants")
     ap.add_argument("--discovery-bids"); ap.add_argument("--discovery-labels")
     ap.add_argument("--replication-bids"); ap.add_argument("--template"); ap.add_argument("--out")
+    # per-target Discovery datasheet column overrides (finalize when it lands)
+    ap.add_argument("--diagnosis-col"); ap.add_argument("--age-col"); ap.add_argument("--gender-col")
     ap.add_argument("--deconfound", default=None)
     a = ap.parse_args()
+
+    if a.challenge:
+        run_challenge(a)
+        return
 
     if a.self_cv:
         labels = read_labels(a.participants)
@@ -232,6 +328,82 @@ def fill_template(template, sid_to_pred, out):
             if sid in sid_to_pred:
                 row[pc].value = float(sid_to_pred[sid])
         wb.save(out)
+
+
+# ---------- V3.1 multi-target challenge template ----------
+# The real MDD-Dx replication template (sheet "Blad1") has NO single "prediction"
+# column: it carries three target columns to fill in place
+# ("Diagnosis (MDD=1; Control=0)", "age", "gender"), each pre-filled with the
+# placeholder "REPLICATION". Match columns by keyword so minor header wording
+# changes across challenge tracks (diagnosis/prognosis) don't break the fill.
+_TARGET_KEYWORDS = {
+    "diagnosis": ("diagnos",),
+    "mdd": ("diagnos",),
+    "treatment": ("respon", "remit", "outcome", "predict"),
+    "age": ("age",),
+    "gender": ("gender", "sex"),
+    "sex": ("gender", "sex"),
+    "id": ("id", "subject", "participant"),
+}
+_REGRESSION_TARGETS = {"age"}
+
+
+def _resolve_column(header, target):
+    """Index of the template column for ``target`` (exact header match wins over
+    substring), or ``None`` if absent. Keeps ``age`` from grabbing a longer
+    header that merely contains "age"."""
+    keys = _TARGET_KEYWORDS.get(target, (target,))
+    hl = [str(h).strip().lower() if h is not None else "" for h in header]
+    for i, h in enumerate(hl):
+        if h in keys:
+            return i
+    for i, h in enumerate(hl):
+        if any(k in h for k in keys):
+            return i
+    return None
+
+
+def _encode_pred(target, value):
+    """Regression targets -> float; binary targets -> hard 0/1 class label
+    (the template asks for the class, e.g. "Diagnosis (MDD=1; Control=0)")."""
+    if target in _REGRESSION_TARGETS:
+        return float(value)
+    return int(round(float(value)))
+
+
+def fill_challenge_template(template, out, preds_by_target, id_target="id"):
+    """Fill the multi-target V3.1 challenge template in place.
+
+    ``preds_by_target`` maps ``target -> {int subject_id: prediction}``. Only the
+    resolved target columns are overwritten, and only for subjects present in
+    that target's dict — a subject with no prediction keeps the placeholder, so a
+    partial submission reads as visibly incomplete rather than a silent 0.
+    """
+    import shutil
+
+    import openpyxl
+
+    shutil.copy(template, out)
+    wb = openpyxl.load_workbook(out)
+    ws = wb.active
+    header = [c.value for c in ws[1]]
+    id_c = _resolve_column(header, id_target)
+    if id_c is None:
+        raise KeyError(f"no ID column in template header {header}")
+    cols = {}
+    for t in preds_by_target:
+        c = _resolve_column(header, t)
+        if c is None:
+            raise KeyError(f"no template column for target {t!r} in {header}")
+        cols[t] = c
+    for row in ws.iter_rows(min_row=2):
+        sid = _sid_to_int(str(row[id_c].value))
+        if sid is None:
+            continue
+        for t, preds in preds_by_target.items():
+            if sid in preds:
+                row[cols[t]].value = _encode_pred(t, preds[sid])
+    wb.save(out)
 
 
 if __name__ == "__main__":
