@@ -3,8 +3,8 @@
 ### A NeuroTechX White Paper — the successor to Roy et al. (2019)
 
 > **Living document.** Maintained by the EMEG-FM research cron and deepened by
-> periodic multi-agent survey sweeps. Status: **v0.6 — survey + benchmark + first empirical result** (§2/zoo
-> from sweep wf_2c2b3461). Last deepened: 2026-06-30.
+> periodic multi-agent survey sweeps. Status: **v0.7 — + within-subject simultaneous
+> EEG→BOLD** (§5: natview coupling replicates + REVE beats band-power). Last deepened: 2026-07-01.
 >
 > **[OURS]** marks sections grounded in original NeuroTechX work (benchmarks +
 > audits) — the reason this is a *white paper*, not another survey.
@@ -208,6 +208,30 @@ gating discipline is the prescriptive point Roy 2019 couldn't make.
   > out ΔR² telling the stable truth. FC reliability 0.555.
   > (`scripts/run_eeg_to_fmri_hbn_case2.py`; Gavish–Donoho rank via the `smni-cmi`
   > stack; caveat: subject- not family-blocked.)
+- **Within-subject *simultaneous* EEG→BOLD (OURS — new, 2026-07):** the complement to the
+  cross-subject null above, in the regime NeuroBOLT/Calhas actually require. On **natview**
+  naturalistic-viewing simultaneous EEG-fMRI (22 subj, TR=2.1 s), **scanner-trigger (R128)
+  alignment is decisive** — the preprocessed EEG leads the scan by ~25 s, and binning EEG
+  *between* volume triggers flips a degenerate null into the canonical **Valdés-Sosa
+  negative occipital-alpha↔BOLD coupling** (single-subject alpha coefficient +2.36 → −1.578
+  once aligned). At the group level (occipital-alpha power vs occipital BOLD, per-subject
+  circular-shift null combined by nested **Stouffer's Z**) the negative coupling
+  **replicates: Z = −2.40, p = 0.008** (20 subjects; 13/20 negative; per-subject t-test
+  p = 0.020) — but the effect is *small* (mean r ≈ −0.05), so scalp band-power captures only
+  a sliver. A sphere-model MNE **source-space** inverse (natview FreeSurfer — the
+  Valdés-Sosa *nPCD* step) did **not** beat scalp on a single subject: a crude forward
+  (template montage, no individual BEM) washes out the gain, matching *why* NeuroBOLT
+  reaches for learned models. This puts the *within-subject physiological* coupling and the
+  HBN cross-subject *association* null side by side — the two EEG↔fMRI regimes that must not
+  be conflated. And the frozen-**REVE**-embedding vs band-power test — the Calhas "two
+  strategies" on *simultaneous* data — gives a **cautious FM win**: neither feature set is a
+  strong absolute predictor of occipital BOLD (REVE Stouffer Z = +0.79, band-power Z = −1.69,
+  both n.s. vs their circular-shift nulls), but the **paired** comparison favors the
+  foundation model — **REVE − band-power Z = +2.48, p = 0.013, REVE > band-power in 13/21
+  subjects** — the frozen embedding carries more BOLD-relevant information than hand-crafted
+  occipital band-power, even though *strong* single-subject synthesis still needs learned
+  models (NeuroBOLT). (`scripts/natview_group_alpha_bold.py`, `natview_source_space.py`,
+  `natview_reve_compare.py`.)
 - **Source space (OURS):** **WAND MEG** individual source imaging via the
   **Valdés-Sosa / CiftiStorm / VARETA** lineage being ported into neurojax's
   differentiable EMEG-Recon — the bridge to unify interpretable model-driven
@@ -279,6 +303,27 @@ NeuroTechX uniquely ships **both the benchmark and the deconfounding audit**:
 
 ### Maintenance log
 
+- **v0.7 (2026-07-01, cron):** §5 — **within-subject *simultaneous* EEG→BOLD on natview**
+  added, the physiological complement to the HBN cross-subject *association* null. Scanner-
+  trigger (R128) alignment recovers the **Valdés-Sosa negative occipital-alpha↔BOLD coupling**
+  (single-subject coef +2.36 → −1.578 once aligned); group nested-Stouffer **Z = −2.40,
+  p = 0.008** (20 subj — replicates but small, mean r ≈ −0.05). Sphere-model **source-space**
+  (natview FreeSurfer, the *nPCD* step) did *not* beat scalp on one subject (crude forward).
+  Frozen-**REVE** vs band-power (Calhas "two strategies"): paired **REVE − band-power
+  Z = +2.48, p = 0.013** (REVE > BP in 13/21 subj) — a cautious FM win, though neither is a
+  strong absolute predictor. (`natview_group_alpha_bold.py`, `natview_source_space.py`,
+  `natview_reve_compare.py`; new `emeg_fm.natview.bin_by_triggers` + tests.)
+  **Survey (2026-06-24→07-01, arxiv-API-dated, quiet week — no new FM release; MEG and
+  EEG→fMRI arms empty):** most on-theme is **Temporal Feature Extractors in EEG FMs**
+  ([2606.30104](https://arxiv.org/abs/2606.30104)) — a frozen *general-purpose* time-series
+  model can transfer as the temporal encoder, task-dependent win; bears directly on §6.1
+  (does EEG-specific pretraining beat a generic baseline) and echoes our §5 REVE-vs-band-power
+  result → **flagged as next cycle's integration.** Also: Riemannian self-attention for EEG
+  ([2606.25456](https://arxiv.org/abs/2606.25456)); multiview brain-visual reps
+  ([2606.25718](https://arxiv.org/abs/2606.25718)); source-free UDA emotion
+  ([2606.28202](https://arxiv.org/abs/2606.28202)); Concept-Guided KAN for MCI
+  ([2606.25434](https://arxiv.org/abs/2606.25434)); NeuroDoc benchmark-spec layer
+  ([2606.22925](https://arxiv.org/abs/2606.22925)). (EEG-DINO excluded — MICCAI 2025, not new.)
 - **v0.6 (2026-06-30, cron):** §5 refreshed with the EEG→fMRI **prediction/synthesis**
   model class (NeuroBOLT — simultaneous EEG-fMRI, 24 subj, +12% ROI-corr; Calhas "two
   strategies"; EEG→MEG generative arXiv:2602.06990), separating *synthesis* (needs

@@ -37,7 +37,19 @@ def cv_pred_r(X, y):
     return float(np.corrcoef(pred, y)[0, 1])
 
 
+def impute_nan(X):
+    """Replace NaN feature rows (e.g. an empty trigger window) with the column mean."""
+    X = np.array(X, float)
+    if np.isnan(X).any():
+        col = np.nanmean(X, axis=0)
+        col = np.where(np.isfinite(col), col, 0.0)
+        bad = np.where(np.isnan(X))
+        X[bad] = np.take(col, bad[1])
+    return X
+
+
 def design_z(X, y, n):
+    X = impute_nan(X)
     h = nv.hrf(TR)
     Xc = np.column_stack([np.convolve(X[:, j], h)[:n] for j in range(X.shape[1])])
     Xc = (Xc - Xc.mean(0)) / (Xc.std(0) + 1e-8)
