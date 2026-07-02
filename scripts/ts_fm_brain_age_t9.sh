@@ -34,7 +34,11 @@ exec docker run --rm --gpus all \
   bash -c '
     set -e
     TSLIBS=/mnt/t9/tsfmlibs
-    python -c "import momentfm" 2>/dev/null || pip install -q --target "$TSLIBS" momentfm
     export PYTHONPATH="$TSLIBS:$PYTHONPATH"
+    # install only the package the requested --model needs (cached in $TSLIBS)
+    for spec in momentfm:momentfm mantis:mantis-tsfm chronos:chronos-forecasting; do
+      imp=${spec%%:*}; pkg=${spec##*:}
+      python -c "import $imp" 2>/dev/null || pip install -q --target "$TSLIBS" "$pkg"
+    done
     exec python scripts/ts_fm_brain_age.py "$@"
   ' _ "$@"

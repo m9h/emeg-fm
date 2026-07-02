@@ -3,8 +3,9 @@
 ### A NeuroTechX White Paper — the successor to Roy et al. (2019)
 
 > **Living document.** Maintained by the EMEG-FM research cron and deepened by
-> periodic multi-agent survey sweeps. Status: **v0.8 — + temporal-encoder replaceability
-> (§6.1)**, on v0.7's within-subject EEG→BOLD (§5). Last deepened: 2026-07-01.
+> periodic multi-agent survey sweeps. Status: **v0.9 — + NeuroAtlas corroboration
+> (§3/§4) & generic-TS-FM test**, on v0.8's temporal-encoder replaceability (§6.1).
+> Last deepened: 2026-07-01.
 >
 > **[OURS]** marks sections grounded in original NeuroTechX work (benchmarks +
 > audits) — the reason this is a *white paper*, not another survey.
@@ -132,8 +133,25 @@ frozen REVE/LuMamba block-6 embedding + ridge.
 *trails* both classical and a supervised DNN (REVE R²=0.26 vs classical 0.54 vs Deep4Net
 0.69); on HBN it merely *ties* classical. Roy's deep-vs-classical question, answered —
 against the FM — and the empirical backbone of this paper's thesis. *(† HBN FM numbers as
-reported in the run scripts; results CSV to re-confirm. NEOBA-handcrafted on LEMON +
-TUEG/TDBRAIN: pending.)*
+reported in the run scripts; results CSV to re-confirm. TDBRAIN-V3.1 (1300-subject adult
+lifespan, coffeine + REVE on identical folds): running.)*
+
+**Independent corroboration at scale — NeuroAtlas (Kontras et al. 2026, arXiv:2605.14698).**
+The largest EEG-FM benchmark to date (42 datasets, ~260k h, 20 models) reaches our exact
+brain-age verdict on its *sleep-EEG* cohorts: the **task-specific feature model (Sun 2019)
+is the only model significant on both MAE and Pearson r**; no EEG-FM is a stable winner,
+and EEG-FMs "do not consistently beat generic **time-series** FMs" (Chronos/MOMENT/Moirai)
+that were never trained on EEG. Two of their findings sharpen ours: brain-age *accuracy*
+does not transfer to the clinically-relevant **brain-age-gap** biomarker (best AUROC 0.59
+for cognitive-impairment separation — cf. our TDBRAIN treatment-response null), and
+embedding dimensionality does not predict transfer (our LuMamba result: best WeightWatcher
+health, weakest downstream). **Three gaps NeuroAtlas leaves are precisely our contributions:**
+(i) it covers *sleep* EEG only — our TDBRAIN/LEMON/HBN arm tests the same claim on **awake
+resting-state**; (ii) it probes standalone frozen encoders — our **classical⊕FM fusion**
+(NEOBA⊕REVE beats every standalone, halves R² variance) is untested there; (iii) its
+confound analysis is *oculomotor*, not the **subject-identity** axis of §4. We fold the
+generic-TS-FM test into our benchmark directly (MOMENT/Mantis/Chronos-Bolt as frozen
+extractors on the REVE cohort/CV, `emeg-fm/scripts/ts_fm_brain_age.py`).
 
 ## 4. The reproducibility / confound crisis **[OURS — the original contribution]**
 
@@ -146,6 +164,12 @@ The field scaled, then turned a rigor lens on itself — and the lens is ours.
   **13–89× null subject-variance in 12/12 model-dataset pairs** (LaBraM/CBraMod/REVE
   × 4 datasets), **worsening under fine-tuning**, partly a removable linear axis
   carried by the **aperiodic 1/f** carrier.
+- **A second confound axis, independently confirmed** (NeuroAtlas 2026): frozen-FM
+  motor-imagery decoding drops **below chance** once post-cue saccades / low-frequency
+  drift are filtered (Bakas 2025) — the "decoding" was largely *oculomotor*, not neural.
+  This is orthogonal to our subject-identity axis; together they say aggregate BCI/clinical
+  metrics routinely score artifacts. NeuroAtlas also adopts the Combrisson-Jerbi (2015)
+  finite-sample chance correction we use in the per-trial leaderboard.
 - **Our recipe:** pooled (subject,condition) erasure reproduces the paper-method
   result byte-exact (BNCI2014_001 0.67→0.96); a stricter **per-trial** test is
   reported alongside; the deconfounded **"identity-free" leaderboard** certifies any
@@ -302,8 +326,11 @@ NeuroTechX uniquely ships **both the benchmark and the deconfounding audit**:
 - **MOABB:** Chevallier et al. (2024) arXiv:2404.15319 · **FMScope identity trap:**
   arXiv:2606.06647 · **segment-leakage:** Brookshire et al. (2024)
 - **Capability audits:** arXiv:2507.01196, 2502.21086 · **synthesis review:**
-  arXiv:2601.17883 · **benchmarks:** EEG-FM-Bench arXiv:2508.17742, Brain4FMs,
-  AdaBrain-Bench
+  arXiv:2601.17883 · **benchmarks:** **NeuroAtlas** (Kontras et al. 2026,
+  arXiv:2605.14698 — 42 datasets/260k h, EEG-FMs don't beat generic TS-FMs; task-
+  specific brain-age model wins; MI is oculomotor-confounded), EEG-FM-Bench
+  arXiv:2508.17742, Brain4FMs, AdaBrain-Bench · **generic TS-FMs on EEG:**
+  arXiv:2510.27522 (Chronos/MOMENT/TimesFM/Mantis as frozen extractors)
 - Model refs inline in the §2 zoo + §5. NeuroTechX work: MOABB; FMScope; NEOBA;
   REVE/LaBraM WeightWatcher; EEG→fMRI HBN; WAND MEG source imaging.
 
@@ -311,6 +338,14 @@ NeuroTechX uniquely ships **both the benchmark and the deconfounding audit**:
 
 ### Maintenance log
 
+- **v0.9 (2026-07-01):** integrated **NeuroAtlas** (Kontras et al. 2026, arXiv:2605.14698,
+  42-dataset/260k-h EEG-FM benchmark) as the flagship external corroboration — §3 Table 2
+  (its sleep-EEG brain-age verdict = ours: task-specific model wins, EEG-FMs don't beat
+  generic TS-FMs), §4 (its oculomotor MI-confound = a second axis beside our identity trap;
+  shared Combrisson-Jerbi chance correction), References. Positioned our three complements
+  (awake-resting arm, classical⊕FM fusion, identity axis). Folded the generic-TS-FM test
+  into the benchmark: `emeg-fm/scripts/ts_fm_brain_age.py` (MOMENT/Mantis/Chronos-Bolt as
+  frozen extractors on the REVE cohort/CV) + TDBRAIN-V3.1 wired into meeg-brain-age-benchmark.
 - **v0.8 (2026-07-01, cron):** §6.1 deepened with the survey item v0.7 flagged —
   **Temporal Feature Extractors in EEG FMs** ([2606.30104](https://arxiv.org/abs/2606.30104)):
   a controlled comparison finds a **frozen general-purpose time-series model (MOMENT)**

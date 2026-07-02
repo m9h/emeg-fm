@@ -67,7 +67,62 @@ class MomentAdapter:
         return emb.reshape(B, C, -1).mean(axis=1)        # (B, D)
 
 
-ADAPTERS = {"moment": MomentAdapter}
+class MantisAdapter:
+    """Paris-Noah Mantis-8M: ViT contrastive TS-FM built as a FROZEN feature
+    extractor (sklearn-style ``MantisTrainer.transform``). Architecturally distinct
+    from MOMENT's masked-T5 encoder. Handles multivariate by encoding each channel
+    and concatenating, so ``embed`` returns (B, C*emb) — no manual channel pool.
+    (Validated on EEG in arXiv 2510.27522.) API to confirm on first container run."""
+    hf_default = "paris-noah/Mantis-8M"
+    seq_len = 512
+
+    def load(self, hf_id):
+        import torch
+        from mantis.architecture import Mantis8M
+        from mantis.trainer import MantisTrainer
+        self.torch = torch
+        self.dev = "cuda" if torch.cuda.is_available() else "cpu"
+        net = Mantis8M(device=self.dev).from_pretrained(hf_id)
+        self.model = MantisTrainer(device=self.dev, network=net)
+
+    def embed(self, x):
+        return np.asarray(self.model.transform(x.astype(np.float32)), dtype=np.float32)
+
+
+class ChronosBoltAdapter:
+    """Amazon Chronos-Bolt: T5 encoder-decoder trained by tokenized-forecasting —
+    a different pretraining signal from MOMENT. Documented ``.embed()`` returns
+    encoder embeddings; univariate, so each channel is embedded then pooled."""
+    hf_default = "amazon/chronos-bolt-base"
+    seq_len = 512
+
+    def load(self, hf_id):
+        import torch
+        from chronos import ChronosBoltPipeline
+        self.torch = torch
+        self.dev = "cuda" if torch.cuda.is_available() else "cpu"
+        self.pipe = ChronosBoltPipeline.from_pretrained(hf_id, device_map=self.dev)
+
+    def embed(self, x):
+        torch = self.torch
+        B, C, L = x.shape
+        xr = x.reshape(B * C, L)
+        outs = []
+        with torch.no_grad():
+            for i in range(0, xr.shape[0], 256):
+                emb, _ = self.pipe.embed(torch.tensor(xr[i:i + 256], dtype=torch.float32))
+                e = np.asarray(emb.float().cpu())
+                if e.ndim == 3:                       # (chunk, tokens, D) -> token-mean
+                    e = e.mean(axis=1)
+                outs.append(e)
+        emb = np.concatenate(outs, axis=0)            # (B*C, D)
+        return emb.reshape(B, C, -1).mean(axis=1)     # (B, D)
+
+
+# Ranked (arXiv 2510.27522 + NeuroAtlas): moment (baseline) -> mantis (purpose-built
+# feature extractor, ViT) -> chronos-bolt (clean embed, T5 forecasting). Next to add:
+# chronos-2 (native multivariate embed), time-moe (decoder-only MoE), timesfm-2.5.
+ADAPTERS = {"moment": MomentAdapter, "mantis": MantisAdapter, "chronos-bolt": ChronosBoltAdapter}
 
 
 def _resample_time(x, target_len):
