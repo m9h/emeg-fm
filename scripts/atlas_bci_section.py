@@ -20,6 +20,7 @@ TS-FMs through their packages. Runs in the NGC 26.06 container (scripts/eegfm_t9
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 import numpy as np
@@ -92,7 +93,7 @@ def embed_eegfm(name, X, ch_names, sfreq_in, device, batch=16):
     info = mne.create_info(list(ch_names), sf, "eeg")
     info.set_montage("standard_1005", on_missing="ignore")
     m = getattr(bm, cls).from_pretrained(mid, chs_info=info["chs"], n_outputs=2,
-                                         n_times=win, sfreq=sf).to(device).eval()
+                                         n_times=win, sfreq=sf).to(device).eval()  # may raise on small montages
     cap = {}
     m.final_layer.register_forward_pre_hook(lambda mod, a: cap.__setitem__("z", a[0].detach()))
     out = []
@@ -115,6 +116,39 @@ def embed_classical(X, sfreq):
     f, pxx = welch(X, fs=sfreq, nperseg=min(256, X.shape[-1]), axis=-1)  # (n,C,F)
     feats = [np.log(pxx[:, :, (f >= lo) & (f < hi)].mean(-1) + 1e-30) for lo, hi in bands]
     return np.concatenate(feats, axis=1)  # (n, C*4)
+
+
+def embed_tsfm(name, X, sfreq_in, batch=16):
+    """Generic TS-FM per-trial embedding (montage-agnostic; reuse the brain-age
+    adapters). One embedding per trial (no epoch-mean)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from ts_fm_brain_age import ADAPTERS, _resample_time
+    ad = ADAPTERS[name]()
+    ad.load(ad.hf_default)
+    out = []
+    for i in range(0, len(X), batch):
+        b = _resample_time(np.asarray(X[i:i + batch], np.float64), ad.seq_len)  # -> (B,C,seq_len)
+        out.append(ad.embed(b.astype(np.float32)))
+    return np.concatenate(out, 0)
+
+
+def embed_reve(X, ch_names, sfreq_in, device, batch=16):
+    """REVE via our 3D-coordinate adapter (montage-flexible — no interpolation)."""
+    from emeg_fm.eeg_fm import REVEAdapter, REVE_BASE_ID
+    ad = REVEAdapter(layer=6)
+    loaded = ad.load_model(REVE_BASE_ID)
+    if ch_names is None:
+        ch_names = [f"EEG{i}" for i in range(X.shape[1])]
+    out = []
+    for i in range(0, len(X), batch):
+        b = np.asarray(X[i:i + batch], np.float64)
+        mu = b.mean(-1, keepdims=True)
+        b = np.clip((b - mu) / (b.std(-1, keepdims=True) + 1e-8), -15, 15).astype(np.float32)
+        f = np.asarray(ad.extract_features(
+            loaded, {"eeg": b, "electrode_names": list(ch_names), "ch_names": list(ch_names)}),
+            dtype=np.float32)
+        out.append(f.mean(1) if f.ndim == 3 else f)
+    return np.concatenate(out, 0)
 
 
 # ---------- evaluation ----------
@@ -162,11 +196,19 @@ def main():
     print(f"[atlas-bci] X={X.shape} n_classes={n_classes} subjects={len(np.unique(subj))} sfreq={sfreq}")
 
     if a.model in EEGFM:
-        emb = embed_eegfm(a.model, X, ch_names, sfreq, dev)
+        try:
+            emb = embed_eegfm(a.model, X, ch_names, sfreq, dev)
+        except Exception as e:  # braindecode Interpolated SVD fails on small BCI montages
+            raise SystemExit(f"[atlas-bci] SKIP {a.model}: braindecode extraction failed "
+                             f"({type(e).__name__}: {str(e)[:120]})")
+    elif a.model in TSFM:
+        emb = embed_tsfm(a.model, X, sfreq)
+    elif a.model == "reve":
+        emb = embed_reve(X, ch_names, sfreq, dev)
     elif a.model in CLASSICAL:
         emb = embed_classical(X, sfreq)
     else:
-        raise SystemExit(f"model {a.model!r} not yet wired here (EEGFM={list(EEGFM)}, classical={list(CLASSICAL)})")
+        raise SystemExit(f"unknown model {a.model!r}")
     print(f"[atlas-bci] embeddings {emb.shape}")
 
     raw = loso(emb, y, subj, n_classes, erase_identity=False)
