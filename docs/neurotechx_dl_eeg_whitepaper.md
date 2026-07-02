@@ -149,9 +149,13 @@ health, weakest downstream). **Three gaps NeuroAtlas leaves are precisely our co
 (i) it covers *sleep* EEG only — our TDBRAIN/LEMON/HBN arm tests the same claim on **awake
 resting-state**; (ii) it probes standalone frozen encoders — our **classical⊕FM fusion**
 (NEOBA⊕REVE beats every standalone, halves R² variance) is untested there; (iii) its
-confound analysis is *oculomotor*, not the **subject-identity** axis of §4. We fold the
-generic-TS-FM test into our benchmark directly (MOMENT/Mantis/Chronos-Bolt as frozen
-extractors on the REVE cohort/CV, `emeg-fm/scripts/ts_fm_brain_age.py`).
+confound analysis is *oculomotor*, not the **subject-identity** axis of §4. **We ran the
+generic-TS-FM test ourselves on awake resting-state** (LEMON, 120 subj, identical folds,
+`emeg-fm/scripts/ts_fm_brain_age.py`): frozen **MOMENT 10.34/R²0.52, Chronos-Bolt
+10.59/0.45, Mantis 11.87/0.39 — all three beat the EEG-specific FM REVE (11.57/0.26)**,
+none trained on EEG. NeuroAtlas's headline replicates on the cohort type it omitted: on
+this task the EEG-specific pretraining buys nothing over generic temporal pretraining.
+(TDBRAIN 1285-subj confirmation, where classical coffeine reaches R²=0.74, in progress.)
 
 ## 4. The reproducibility / confound crisis **[OURS — the original contribution]**
 
