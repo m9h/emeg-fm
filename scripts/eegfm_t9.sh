@@ -25,7 +25,7 @@ T9="${T9:-/mnt/t9}"
 # HF token (gated REVE/Brant) — runtime env only, never written to disk here.
 HF_TOKEN="$(cat "$HOME/.cache/huggingface/token" 2>/dev/null || true)"
 
-PYPATH="$T9/tokfix:/emeg-fm:/emeg-fm/fmscope:$T9/moabblibs:$T9/eegfm_libs_2606"
+PYPATH="$T9/tokfix:/emeg-fm:/emeg-fm/fmscope:$T9/moabblibs:$T9/eegfm_libs_2606:$T9/tsfmlibs"
 
 exec docker run --rm --gpus all --ipc=host \
   -v "$EMEG_FM:/emeg-fm" \
