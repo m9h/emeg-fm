@@ -87,9 +87,18 @@ def build_matrix(bids_root, subject_ids, task="restEC"):
 
 
 # ---------- labels ----------
-def read_labels(path, id_col="participant_id"):
-    """Read participants.tsv / datasheet (.tsv/.csv/.xlsx) -> {int sid: {col: val}}."""
+_ID_COL_CANDIDATES = ("participant_id", "TDBRAIN_ID", "subject", "ID", "id")
+
+
+def read_labels(path, id_col=None):
+    """Read participants.tsv / datasheet (.tsv/.csv/.xlsx) -> {int sid: {col: val}}.
+
+    ``id_col=None`` auto-detects the subject column (TDBRAIN's datasheet uses
+    ``TDBRAIN_ID``; the trait TSV used ``participant_id``). First (ses-1) row wins.
+    """
     rows = _read_table(path)
+    if id_col is None and rows:
+        id_col = next((c for c in _ID_COL_CANDIDATES if c in rows[0]), _ID_COL_CANDIDATES[0])
     out = {}
     for r in rows:
         sid = _sid_to_int(str(r.get(id_col, "")))
@@ -212,9 +221,33 @@ def _eligible_discovery(disc, tspec):
     return [s for s in disc if str(disc[s].get(col, "")).strip() not in ("", "n/a", "None")]
 
 
+def _tspec(spec, tname, a):
+    tspec = dict(spec[tname])
+    override = getattr(a, f"{tname}_col", None)
+    if override:
+        tspec["col"] = override
+    return tspec
+
+
+def _kfold_metric(X, y, is_reg, k=5, seed=42):
+    """Fast internal CV metric (MAE or Balanced Accuracy) — k-fold, since LOO on
+    ~1k Discovery subjects is needlessly slow."""
+    from sklearn.metrics import balanced_accuracy_score, mean_absolute_error
+    from sklearn.model_selection import KFold, StratifiedKFold
+    splitter = (KFold(k, shuffle=True, random_state=seed) if is_reg
+                else StratifiedKFold(k, shuffle=True, random_state=seed))
+    pred = np.zeros(len(y), float)
+    for tr, te in splitter.split(X, None if is_reg else y):
+        pred[te] = fit_predict(X[tr], y[tr], X[te], is_reg)
+    if is_reg:
+        return "MAE", mean_absolute_error(y, pred)
+    return "BalancedAcc", balanced_accuracy_score(y, (pred >= 0.5).astype(int))
+
+
 def run_challenge(a):
     """Train one head per template target on Discovery, predict the blinded
-    Replication set, fill the multi-target template."""
+    Replication set, fill the multi-target template. The Discovery feature matrix
+    is built ONCE (union of all heads' eligible subjects) and subset per head."""
     spec = CHALLENGE_SPEC[a.challenge]
     disc = read_labels(a.discovery_labels)
     repl_sids = _template_subject_ids(a.template)
@@ -222,26 +255,30 @@ def run_challenge(a):
     if not repl_kept:
         sys.exit(f"no loadable replication recordings under {a.replication_bids}")
 
+    union = sorted({s for t in spec["targets"] for s in _eligible_discovery(disc, _tspec(spec, t, a))})
+    print(f"[challenge] building Discovery matrix once for {len(union)} labeled subjects ...")
+    Xall, disc_kept = build_matrix(a.discovery_bids, union, a.task)
+    row = {s: i for i, s in enumerate(disc_kept)}
+    print(f"[challenge] Discovery loaded: {len(disc_kept)}/{len(union)} recordings, feat={Xall.shape[1] if Xall.size else 0}")
+
     preds_by_target = {}
     for tname in spec["targets"]:
-        tspec = dict(spec[tname])
-        override = getattr(a, f"{tname}_col", None)
-        if override:
-            tspec["col"] = override
-        elig = _eligible_discovery(disc, tspec)
-        Xtr, kept = build_matrix(a.discovery_bids, elig, a.task)
-        if len(kept) < 10:
-            print(f"[challenge] SKIP {tname}: only {len(kept)} Discovery recordings (col={tspec['col']!r})")
+        tspec = _tspec(spec, tname, a)
+        elig = [s for s in _eligible_discovery(disc, tspec) if s in row]
+        if len(elig) < 10:
+            print(f"[challenge] SKIP {tname}: only {len(elig)} Discovery recordings (col={tspec['col']!r})")
             continue
-        ytr, is_reg = _challenge_target_vector({s: disc[s] for s in kept}, kept, tspec)
+        idx = [row[s] for s in elig]
+        Xtr = Xall[idx]
+        ytr, is_reg = _challenge_target_vector({s: disc[s] for s in elig}, elig, tspec)
         conf_tr = None
         if a.deconfound:  # LEACE fits on train confound only; transform needs no test labels
-            conf_tr = np.array([str(disc[s].get(a.deconfound, "")).strip() for s in kept])
+            conf_tr = np.array([str(disc[s].get(a.deconfound, "")).strip() for s in elig])
         pred = fit_predict(Xtr, ytr, Xte, is_reg, deconfound=a.deconfound, conf_tr=conf_tr)
         preds_by_target[tname] = dict(zip(repl_kept, pred))
-        name, val = self_cv(Xtr, ytr, is_reg)
+        name, val = _kfold_metric(Xtr, ytr, is_reg)
         bal = "" if is_reg else f" pos={int(ytr.sum())}/{len(ytr)}"
-        print(f"[challenge] {tname}: discovery_n={len(kept)}{bal} internal {name}={val:.3f}")
+        print(f"[challenge] {tname}: discovery_n={len(elig)}{bal} internal 5fold-{name}={val:.3f}")
 
     if not preds_by_target:
         sys.exit("no head could be trained — check --discovery-labels column mapping")
