@@ -38,11 +38,12 @@ def _load_ages(participants):
 
 
 def _channel_coords(ch_names):
-    """3D coords from GSN-HydroCel-128 for the channels MNE knows; returns the
-    kept indices + (Ckeep, 3) array (LuMamba normalizes coords internally)."""
+    """3D coords for the channels MNE knows, from GSN-HydroCel-128 (EGI, e.g. HBN)
+    AND standard_1005 (10-20, e.g. TDBRAIN/LEMON) merged, so both montage families
+    resolve. Returns kept indices + (Ckeep, 3) (LuMamba normalizes coords)."""
     import mne
-    pos = mne.channels.make_standard_montage(
-        "GSN-HydroCel-128").get_positions()["ch_pos"]
+    pos = dict(mne.channels.make_standard_montage("GSN-HydroCel-128").get_positions()["ch_pos"])
+    pos.update(mne.channels.make_standard_montage("standard_1005").get_positions()["ch_pos"])
     keep, coords = [], []
     for i, nm in enumerate(ch_names):
         if nm in pos:
