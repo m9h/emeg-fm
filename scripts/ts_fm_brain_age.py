@@ -101,7 +101,9 @@ class ChronosBoltAdapter:
         from chronos import ChronosBoltPipeline
         self.torch = torch
         self.dev = "cuda" if torch.cuda.is_available() else "cpu"
-        self.pipe = ChronosBoltPipeline.from_pretrained(hf_id, device_map=self.dev)
+        # avoid device_map= (needs `accelerate`); load then move the model.
+        self.pipe = ChronosBoltPipeline.from_pretrained(hf_id, torch_dtype=torch.float32)
+        self.pipe.model = self.pipe.model.to(self.dev)
 
     def embed(self, x):
         torch = self.torch
