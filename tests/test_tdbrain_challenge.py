@@ -17,7 +17,9 @@ import openpyxl
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
-from tdbrain_challenge import _resolve_column, fill_challenge_template  # noqa: E402
+import numpy as np  # noqa: E402
+
+from tdbrain_challenge import _apply_norm, _resolve_column, fill_challenge_template  # noqa: E402
 
 REAL_HEADER = ["ID", "Diagnosis (MDD=1; Control=0)", "Consent", "age", "gender"]
 
@@ -65,6 +67,28 @@ def test_fill_challenge_template_writes_three_targets(tmp_path):
         assert r[1].value != "REPLICATION"
         assert r[3].value != "REPLICATION"
         assert r[4].value != "REPLICATION"
+
+
+def test_apply_norm_recording_zscore_is_affine_invariant():
+    # BrainVision-vs-BDF export differs mainly by a per-recording affine
+    # (gain+contrast) transform of the log-spectrum; per-recording z-score of the
+    # band block must be invariant to it so a Discovery-trained model transfers.
+    rng = np.random.RandomState(0)
+    base = rng.randn(4, 156)
+    shifted = base.copy()
+    shifted[:, :130] = base[:, :130] * 2.0 + 5.0  # affine on band block only
+    zb = _apply_norm(base, "recording-zscore")
+    zs = _apply_norm(shifted, "recording-zscore")
+    assert np.allclose(zb[:, :130], zs[:, :130], atol=1e-6)      # band: affine-invariant
+    assert np.allclose(zb[:, 130:], base[:, 130:])                # slope: untouched
+    assert np.allclose(zb[:, :130].mean(1), 0, atol=1e-6)
+    assert np.allclose(zb[:, :130].std(1), 1, atol=1e-3)
+
+
+def test_apply_norm_none_is_identity():
+    x = np.arange(156, dtype=float).reshape(1, 156)
+    assert np.array_equal(_apply_norm(x, "none"), x)
+    assert np.array_equal(_apply_norm(x, None), x)
 
 
 def test_fill_challenge_template_skips_missing_predictions(tmp_path):

@@ -71,8 +71,39 @@ def recording_features(path, channels=TDBRAIN_SCALP_26, sfreq_target=200.0):
     return np.concatenate(feats).astype(np.float64)  # (26*6,)
 
 
-def build_matrix(bids_root, subject_ids, task="restEC"):
-    """(X (n, d), kept_ids) for the given subjects; drops unloadable recordings."""
+N_BAND_FEATS = len(BANDS) * len(TDBRAIN_SCALP_26)  # 5 bands x 26 ch = 130 (slope block follows)
+
+
+def _apply_norm(X, norm, n_band=N_BAND_FEATS):
+    """Per-recording normalization of the log-band-power block (leaving the
+    aperiodic-slope block, already scale-free, untouched).
+
+    TDBRAIN's legacy BrainVision Discovery export and the V3.1 BDF replication set
+    differ mainly by a per-recording affine (gain + spectral-contrast) transform of
+    the log-spectrum. ``recording-zscore`` (z-score each recording's band block) is
+    invariant to that affine, so a model trained on one export transfers to the
+    other; ``recording-center`` removes only the gain. Without it, a StandardScaler
+    fit on Discovery bakes in the wrong mean and the age ridge extrapolates to
+    negative years on the BDF test set."""
+    if norm in (None, "none") or (hasattr(X, "size") and X.size == 0):
+        return X
+    X = np.asarray(X, dtype=float).copy()
+    ax = 1 if X.ndim == 2 else 0
+    sl = (slice(None), slice(0, n_band)) if X.ndim == 2 else (slice(0, n_band),)
+    B = X[sl]
+    mu = B.mean(axis=ax, keepdims=True)
+    if norm == "recording-center":
+        X[sl] = B - mu
+    elif norm == "recording-zscore":
+        X[sl] = (B - mu) / (B.std(axis=ax, keepdims=True) + 1e-9)
+    else:
+        raise ValueError(f"unknown norm {norm!r}")
+    return X
+
+
+def build_matrix(bids_root, subject_ids, task="restEC", norm="none"):
+    """(X (n, d), kept_ids) for the given subjects; drops unloadable recordings.
+    ``norm`` applies per-recording feature normalization (see :func:`_apply_norm`)."""
     X, kept = [], []
     for sid in subject_ids:
         p = _find_raw(bids_root, sid, task)
@@ -83,7 +114,8 @@ def build_matrix(bids_root, subject_ids, task="restEC"):
             continue
         X.append(v)
         kept.append(sid)
-    return (np.vstack(X) if X else np.empty((0, 0))), kept
+    Xm = np.vstack(X) if X else np.empty((0, 0))
+    return _apply_norm(Xm, norm), kept
 
 
 # ---------- labels ----------
@@ -251,13 +283,14 @@ def run_challenge(a):
     spec = CHALLENGE_SPEC[a.challenge]
     disc = read_labels(a.discovery_labels)
     repl_sids = _template_subject_ids(a.template)
-    Xte, repl_kept = build_matrix(a.replication_bids, repl_sids, a.task)  # target-independent
+    print(f"[challenge] norm={a.norm} (per-recording; aligns BrainVision Discovery <-> BDF replication)")
+    Xte, repl_kept = build_matrix(a.replication_bids, repl_sids, a.task, norm=a.norm)  # target-independent
     if not repl_kept:
         sys.exit(f"no loadable replication recordings under {a.replication_bids}")
 
     union = sorted({s for t in spec["targets"] for s in _eligible_discovery(disc, _tspec(spec, t, a))})
     print(f"[challenge] building Discovery matrix once for {len(union)} labeled subjects ...")
-    Xall, disc_kept = build_matrix(a.discovery_bids, union, a.task)
+    Xall, disc_kept = build_matrix(a.discovery_bids, union, a.task, norm=a.norm)
     row = {s: i for i, s in enumerate(disc_kept)}
     print(f"[challenge] Discovery loaded: {len(disc_kept)}/{len(union)} recordings, feat={Xall.shape[1] if Xall.size else 0}")
 
@@ -275,6 +308,8 @@ def run_challenge(a):
         if a.deconfound:  # LEACE fits on train confound only; transform needs no test labels
             conf_tr = np.array([str(disc[s].get(a.deconfound, "")).strip() for s in elig])
         pred = fit_predict(Xtr, ytr, Xte, is_reg, deconfound=a.deconfound, conf_tr=conf_tr)
+        if is_reg:  # keep predictions in the physically-observed training range
+            pred = np.clip(pred, ytr.min(), ytr.max())
         preds_by_target[tname] = dict(zip(repl_kept, pred))
         name, val = _kfold_metric(Xtr, ytr, is_reg)
         bal = "" if is_reg else f" pos={int(ytr.sum())}/{len(ytr)}"
@@ -299,6 +334,9 @@ def main():
     ap.add_argument("--replication-bids"); ap.add_argument("--template"); ap.add_argument("--out")
     # per-target Discovery datasheet column overrides (finalize when it lands)
     ap.add_argument("--diagnosis-col"); ap.add_argument("--age-col"); ap.add_argument("--gender-col")
+    ap.add_argument("--norm", choices=["none", "recording-center", "recording-zscore"],
+                    default="recording-zscore",
+                    help="per-recording feature normalization to bridge the BrainVision/BDF export gap")
     ap.add_argument("--deconfound", default=None)
     a = ap.parse_args()
 
