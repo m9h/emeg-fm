@@ -82,6 +82,22 @@ def load_dataset(key):
 
 
 # ---------- embedding extractors ----------
+_TL_ALIAS = {"T3": "T7", "T4": "T8", "T5": "P7", "T6": "P8"}  # old 10-20 -> standard_1005
+
+
+def _to_mne_casing(ch_names):
+    """Map channel names to standard_1005 canonical casing/aliases so set_montage
+    resolves a position for each (else Interpolated* SVD-fails on NaN coords)."""
+    import mne
+    canon = {c.upper(): c for c in mne.channels.make_standard_montage("standard_1005").ch_names}
+    out = []
+    for c in ch_names:
+        u = c.strip().upper()
+        u = _TL_ALIAS.get(u, u)
+        out.append(canon.get(u, c))
+    return out
+
+
 def embed_eegfm(name, X, ch_names, sfreq_in, device, batch=16):
     import braindecode.models as bm
     import mne
@@ -90,6 +106,10 @@ def embed_eegfm(name, X, ch_names, sfreq_in, device, batch=16):
     cls, mid, sf, win = EEGFM[name]
     if ch_names is None:
         ch_names = [f"EEG{i}" for i in range(X.shape[1])]
+    # Normalize to standard_1005 casing (e.g. "FZ"->"Fz", "FP1"->"Fp1", "T3"->"T7"):
+    # a case/alias mismatch leaves channels position-less -> Interpolated* feeds NaN
+    # coords to lstsq -> "SVD did not converge". See docs/braindecode_1.6.1_report.md.
+    ch_names = _to_mne_casing(list(ch_names))
     info = mne.create_info(list(ch_names), sf, "eeg")
     info.set_montage("standard_1005", on_missing="ignore")
     m = getattr(bm, cls).from_pretrained(mid, chs_info=info["chs"], n_outputs=2,
