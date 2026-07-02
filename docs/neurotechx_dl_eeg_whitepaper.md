@@ -128,6 +128,13 @@ frozen REVE/LuMamba block-6 embedding + ridge.
 |---|---|---|---|---|---|
 | LEMON | 10.78 / 0.54 | 10.23 / 0.51 | **7.75 / 0.69** | 11.57 / 0.26 | — |
 | HBN | 1.69 / 0.61 | — | — | 1.67 / 0.61 † | 1.67 / 0.61 † |
+| **TDBRAIN** (n=1285) | **7.56 / 0.737** | — | — | 9.42 / 0.591 | — |
+
+**Generic TS-FMs vs the EEG-FM (frozen, identical folds).** Adding off-the-shelf time-series
+FMs never trained on EEG: **LEMON** — MOMENT 0.52, Chronos-Bolt 0.45, Mantis 0.39 (all > REVE
+0.26); **TDBRAIN** (n=1285, tight ±0.02–0.04) — Mantis **0.691**, MOMENT **0.648**, Chronos-Bolt
+0.597 ≈ REVE 0.591. Across both cohorts the EEG-specific FM earns **no advantage** over generic
+temporal pretraining, and **classical coffeine (TDBRAIN R²=0.737) beats every foundation model.**
 
 **The honest verdict: the frozen FM does not beat the classical baseline.** On LEMON it
 *trails* both classical and a supervised DNN (REVE R²=0.26 vs classical 0.54 vs Deep4Net
@@ -155,7 +162,9 @@ generic-TS-FM test ourselves on awake resting-state** (LEMON, 120 subj, identica
 10.59/0.45, Mantis 11.87/0.39 — all three beat the EEG-specific FM REVE (11.57/0.26)**,
 none trained on EEG. NeuroAtlas's headline replicates on the cohort type it omitted: on
 this task the EEG-specific pretraining buys nothing over generic temporal pretraining.
-(TDBRAIN 1285-subj confirmation, where classical coffeine reaches R²=0.74, in progress.)
+**Confirmed on TDBRAIN (n=1285):** Mantis 0.69 / MOMENT 0.65 beat REVE 0.59, Chronos-Bolt 0.60
+ties it, and classical coffeine (R²=0.737) beats them all — the same verdict against a *strong*
+baseline, sharper than NeuroAtlas's own sleep-EEG evidence.
 
 ## 4. The reproducibility / confound crisis **[OURS — the original contribution]**
 
