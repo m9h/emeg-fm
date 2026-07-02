@@ -35,10 +35,14 @@ exec docker run --rm --gpus all \
     set -e
     TSLIBS=/mnt/t9/tsfmlibs
     export PYTHONPATH="$TSLIBS:$PYTHONPATH"
-    # install only the package the requested --model needs (cached in $TSLIBS)
+    # Install with --no-deps: the heavy runtime deps (torch/transformers/numpy/
+    # huggingface_hub) already live in the NGC container. Without it, momentfm et al.
+    # try to BUILD an ancient pinned numpy from source, which fails on py3.12
+    # (pkgutil.ImpImporter removed). einops is the one pure-python extra momentfm needs.
     for spec in momentfm:momentfm mantis:mantis-tsfm chronos:chronos-forecasting; do
       imp=${spec%%:*}; pkg=${spec##*:}
-      python -c "import $imp" 2>/dev/null || pip install -q --target "$TSLIBS" "$pkg"
+      python -c "import $imp" 2>/dev/null || pip install -q --no-deps --target "$TSLIBS" "$pkg"
     done
+    python -c "import einops" 2>/dev/null || pip install -q --no-deps --target "$TSLIBS" einops
     exec python scripts/ts_fm_brain_age.py "$@"
   ' _ "$@"
