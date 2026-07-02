@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # General EEG-FM runner on the up-to-date NGC PyTorch 26.06 container — Tier-0 base
 # for the NeuroTechX Container Center. Validated 2026-06-30 on the GB10: torch 2.13
-# / CUDA 13.3 + transformers 5.12 + braindecode 1.5.2 + torchaudio (GPU fftconvolve)
+# / CUDA 13.3 + transformers 5.12 + braindecode 1.6.1 + torchaudio (GPU fftconvolve)
 # + the REVE adapter all load.
 #
 # Dep layers (PYTHONPATH order matters — tokfix first for the tokenizers pin, the

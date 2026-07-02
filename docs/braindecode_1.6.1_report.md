@@ -67,6 +67,21 @@ The model docstrings only show `repo_id="username/my-cbramod-model"` upload exam
 `braindecode/CBraMod` / `braindecode/LUNA` weights exist on the Hub. **Ask:** publish the
 pretrained weights or document that these ship architecture-only (no `from_pretrained`).
 
+### 4. `InterpolatedEEGPT.from_pretrained` — pretrained channel vocab not reconstructed (1.6.1 new)
+Loading `braindecode/eegpt-pretrained` through the new `InterpolatedEEGPT` fails regardless of
+`sfreq`/`n_times`:
+```
+RuntimeError: Error(s) in loading state_dict for InterpolatedEEGPT:
+  size mismatch for chans_id: copying a param with shape torch.Size([1, 62]) from checkpoint,
+  the shape in current model is torch.Size([1, <n_input_chans>]).
+```
+The wrapper builds the base EEGPT at the *input* channel count instead of the pretrained 62-ch
+layout, so the checkpoint's `chans_id` won't load — the montage-interpolation target is mis-sized.
+**Ask:** `InterpolatedEEGPT.from_pretrained` should infer the pretrained channel count (62) for the
+base and interpolate the input montage onto it (as `InterpolatedBIOT` does). By contrast the other
+new 1.6.1 FM, **`EEGDINO` (`braindecode/eegdino-small-pretrained`), loads and runs cleanly** —
+verified end-to-end at 200 Hz.
+
 ## Our-side fix (independent of upstream)
 Normalize channel names to MNE `standard_1005` casing before `set_montage` in the FM extractor
 (`emeg_fm`/`atlas_bci_section.embed_eegfm`) → all 19 positions resolve → the `Interpolated*` path

@@ -22,7 +22,7 @@ lines with its own loader, forward hook, and input-dict contract. Adding a model
 writing and debugging another adapter. That's why "run the whole zoo" reads as a
 multi-week job.
 
-## What braindecode 1.5.2 changes
+## What braindecode 1.6.1 changes
 
 braindecode now ships the **zoo itself** as first-class `braindecode.models.*`
 classes. In our 26.06 container: `BIOT, BENDR, CBraMod, LUNA, LaBraM, EEGPT, REVE,

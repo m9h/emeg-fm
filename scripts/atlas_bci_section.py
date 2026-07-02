@@ -33,9 +33,14 @@ BCI_DATASETS = {
 
 # EEG-FMs via braindecode (Interpolated* = montage-agnostic). name: (class, hf_id, sfreq, win)
 EEGFM = {
-    "biot":   ("InterpolatedBIOT",  "braindecode/biot-pretrained-six-datasets-18chs", 200.0, 1000),
-    "bendr":  ("InterpolatedBENDR", "braindecode/braindecode-bendr",                  250.0, 1000),
-    "labram": ("InterpolatedLaBraM", "braindecode/labram-pretrained",                 200.0, 3000),
+    "biot":    ("InterpolatedBIOT",   "braindecode/biot-pretrained-six-datasets-18chs", 200.0, 1000),
+    "bendr":   ("InterpolatedBENDR",  "braindecode/braindecode-bendr",                  250.0, 1000),  # broken upstream (checkpoint kwarg skew, 1.5.2+1.6.1)
+    "labram":  ("InterpolatedLaBraM", "braindecode/labram-pretrained",                  200.0, 3000),
+    # braindecode 1.6.1 additions (adopted 2026-07-02):
+    "eegdino": ("EEGDINO",            "braindecode/eegdino-small-pretrained",           200.0, 1000),  # ✓ verified end-to-end
+    # "eegpt": InterpolatedEEGPT.from_pretrained doesn't rebuild the 62-ch pretrained chans_id
+    #   -> state_dict size mismatch (upstream, see docs/braindecode_1.6.1_report.md #4). blocked.
+    # "steegformer": needs a per-model 22-ch-vocab adapter (its own channel embedding). TODO.
 }
 TSFM = {"moment", "mantis", "chronos-bolt"}
 CLASSICAL = {"logbandpower"}

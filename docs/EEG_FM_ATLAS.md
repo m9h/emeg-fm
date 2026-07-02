@@ -21,7 +21,7 @@ Three design pillars:
 ## Quick start
 
 Everything runs in the **NGC 26.06 container** via `scripts/eegfm_t9.sh` (torch + transformers
-+ braindecode 1.5.2 + the EEG-FM zoo; PYTHONPATH wires `/mnt/t9/{moabblibs,eegfm_libs_2606,
++ braindecode 1.6.1 + the EEG-FM zoo; PYTHONPATH wires `/mnt/t9/{moabblibs,eegfm_libs_2606,
 tsfmlibs,tokfix}` + emeg-fm + fmscope). Example:
 ```
 scripts/eegfm_t9.sh python scripts/atlas_cogneuro_section.py --model reve
@@ -31,8 +31,9 @@ many-small-file I/O. `leace.py` is copied to `/mnt/t9` for in-container import.
 
 ## The braindecode keystone (why one extractor covers the zoo)
 
-`docs/braindecode_eegfm_extraction.md` — braindecode 1.5.2 ships the zoo as first-class
-`braindecode.models.*` (BIOT/BENDR/CBraMod/LUNA/LaBraM/EEGPT/REVE + `Interpolated*`). Three
+`docs/braindecode_eegfm_extraction.md` — braindecode 1.6.1 ships the zoo as first-class
+`braindecode.models.*` (BIOT/BENDR/CBraMod/LUNA/LaBraM/EEGPT/REVE + `Interpolated*`; 1.6.1 adds
+EEGDINO/STEEGFormer/MVPFormer/InterpolatedEEGPT/TCFormer — EEGDINO is wired in). Three
 properties → one ~150-line extractor: `from_pretrained(hf_id)` (uniform load) + a shared
 `final_layer` (hook its input = pooled embedding, ANY model) + `Interpolated*` (`chs_info` →
 montage-adapt to the pretrained layout). **Gotchas:** the WeightWatcher `_state_dict_wrapper`
