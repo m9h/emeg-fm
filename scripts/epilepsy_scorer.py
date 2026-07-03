@@ -67,6 +67,86 @@ def scores_to_events(scores, win_starts, win_dur, threshold,
     return [(s, e) for s, e in merged if (e - s) >= min_event_s]
 
 
+# ---------- SzCORE reference scorer (EpilepsyBench / Sci-Rep 2026 standard) ----------
+# Primary scorer: the validated `timescoring` EventScoring (SzCORE tolerances:
+# 30 s pre / 60 s post, 90 s refractory, 5 min max event). Our earlier hand-rolled
+# any-overlap scorer stays available as a lightweight fallback + a NEDC cross-check
+# is run separately. timescoring lives in the container lib stack (/mnt/t9).
+_SZCORE_DEFAULT = dict(toleranceStart=30.0, toleranceEnd=60.0, minOverlap=0.0,
+                       maxEventDuration=5 * 60.0, minDurationBetweenEvents=90.0)
+
+
+def _szcore_imports():
+    from timescoring import scoring
+    from timescoring.annotations import Annotation
+    return scoring, Annotation
+
+
+def szcore_score_recording(pred_events, true_events, dur_s, fs=10, params=None):
+    """SzCORE EventScoring for ONE recording. pred/true events = [(start_s, stop_s)].
+    Returns (tp, fp, refTrue, dur_days) for cross-recording aggregation."""
+    scoring, Annotation = _szcore_imports()
+    N = max(1, int(round(dur_s * fs)))
+
+    def mask(evs):
+        m = np.zeros(N, bool)
+        for a, b in evs:
+            m[max(0, int(round(a * fs))):min(N, int(round(b * fs)))] = True
+        return m
+
+    ref = Annotation(mask(true_events), fs)
+    hyp = Annotation(mask(pred_events), fs)
+    p = scoring.EventScoring.Parameters(**(params or _SZCORE_DEFAULT))
+    s = scoring.EventScoring(ref, hyp, p)
+    return int(s.tp), int(s.fp), int(s.refTrue), N / fs / 86400.0
+
+
+def szcore_curve(scores, win_starts, win_dur, true_events, durations_s,
+                 thresholds=None, fs=10, params=None, min_event_s=1.0, merge_gap_s=1.0):
+    """Sweep thresholds -> (sensitivity, FA-per-DAY) via the SzCORE reference scorer,
+    aggregated across recordings (sens = ΣTP/ΣrefTrue, FA/day = ΣFP/Σdays)."""
+    if thresholds is None:
+        thresholds = np.linspace(0.02, 0.98, 40)
+    recs = list(zip(scores, win_starts, true_events, durations_s))
+    sens, fa_day, f1, tps, fps, rts = [], [], [], [], [], []
+    for th in thresholds:
+        TP = FP = RT = 0
+        days = 0.0
+        for sc, ws, te, dur in recs:
+            pe = scores_to_events(sc, ws, win_dur, th, min_event_s, merge_gap_s)
+            tp, fp, rt, d = szcore_score_recording(pe, te, dur, fs, params)
+            TP += tp; FP += fp; RT += rt; days += d
+        se = TP / RT if RT else np.nan
+        prec = TP / (TP + FP) if (TP + FP) else 0.0
+        sens.append(se); fa_day.append(FP / days if days else np.nan)
+        f1.append(2 * prec * se / (prec + se) if (prec + se) and np.isfinite(se) else 0.0)
+        tps.append(TP); fps.append(FP); rts.append(RT)
+    fa_day = np.asarray(fa_day)
+    return {"thresholds": np.asarray(thresholds), "sensitivity": np.asarray(sens),
+            "fa_per_day": fa_day, "fa_per_h": fa_day / 24.0, "f1": np.asarray(f1),
+            "tp": np.asarray(tps), "fp": np.asarray(fps), "ref_true": np.asarray(rts)}
+
+
+def szcore_operating_point(dev_curve, eval_curve):
+    """Pick the F1-optimal threshold on DEV, report EVAL metrics at that threshold
+    (SzCORE/EpilepsyBench convention: tune operating point on dev, apply to eval)."""
+    i = int(np.nanargmax(dev_curve["f1"]))
+    th = float(dev_curve["thresholds"][i])
+    j = int(np.argmin(np.abs(eval_curve["thresholds"] - th)))
+    return dict(threshold=th,
+                eval_sensitivity=float(eval_curve["sensitivity"][j]),
+                eval_fa_per_day=float(eval_curve["fa_per_day"][j]),
+                eval_f1=float(eval_curve["f1"][j]),
+                dev_f1=float(dev_curve["f1"][i]))
+
+
+def sensitivity_at_fa_day(curve, fa_day_target):
+    """Best sensitivity achievable at <= fa_day_target FP/24h (SzCORE operating point)."""
+    fa, sens = curve["fa_per_day"], curve["sensitivity"]
+    m = np.isfinite(fa) & np.isfinite(sens) & (fa <= fa_day_target)
+    return float(np.nanmax(sens[m])) if m.any() else 0.0
+
+
 # ---------- any-overlap event scoring ----------
 def event_confusion(pred_events, true_events):
     """Any-overlap scoring (SzCORE-style):
@@ -102,20 +182,31 @@ def sens_fa_curve(scores, win_starts, win_dur, true_events, total_hours,
             "sensitivity": np.asarray(sens), "fa_per_h": np.asarray(fa)}
 
 
-def event_sens_at_fa_auc(curve, fa_lo=0.1, fa_hi=100.0):
-    """AUC of sensitivity vs log10(FA/h) over [fa_lo, fa_hi] (NeuroAtlas metric,
-    bounded [0,1]). Curve is monotonised (best sensitivity achievable at <= each FA)."""
-    fa = curve["fa_per_h"]
-    sens = curve["sensitivity"]
-    ok = np.isfinite(fa) & np.isfinite(sens) & (fa > 0)
+def event_sens_at_fa_auc(curve, fa_lo=0.1, fa_hi=100.0, fa_key="fa_per_h"):
+    """AUC of sensitivity vs log10(FA) over [fa_lo, fa_hi] (NeuroAtlas metric, [0,1]).
+    Monotonised (best sensitivity achievable at <= each FA). ``fa_key`` selects the
+    FA axis ('fa_per_h' NeuroAtlas, or 'fa_per_day' SzCORE).
+
+    IMPORTANT: at FA targets STRICTER than the minimum achievable FA (the classifier
+    can't operate that quietly), sensitivity is 0 — you cannot detect at that budget.
+    Extrapolating the max sensitivity down (the old ``left=sens[0]``) let a degenerate
+    all-alarm classifier — which only operates at huge FA — score a perfect 1.0."""
+    fa = np.asarray(curve[fa_key], float)
+    sens = np.asarray(curve["sensitivity"], float)
+    ok = np.isfinite(fa) & np.isfinite(sens)
     fa, sens = fa[ok], sens[ok]
-    if len(fa) < 2:
+    if len(fa) < 1:
         return float("nan")
+    # FA==0 (a no-false-alarm operating point) is achievable at ANY budget -> anchor it
+    # just left of the grid so its sensitivity carries across the whole range.
+    fa = np.maximum(fa, fa_lo * 0.1)
     order = np.argsort(fa)
     fa, sens = fa[order], sens[order]
     sens = np.maximum.accumulate(sens)          # best sensitivity at <= this FA
     grid = np.logspace(np.log10(fa_lo), np.log10(fa_hi), 200)
-    s = np.interp(np.log10(grid), np.log10(fa), sens, left=sens[0], right=sens[-1])
+    # left=0: FA below the achievable minimum is unreachable -> 0 usable sensitivity.
+    # right=sens[-1]: extra FA budget beyond the loosest point can't lower sensitivity.
+    s = np.interp(np.log10(grid), np.log10(fa), sens, left=0.0, right=sens[-1])
     return float((np.trapezoid if hasattr(np,"trapezoid") else np.trapz)(s, np.log10(grid)) / (np.log10(fa_hi) - np.log10(fa_lo)))
 
 

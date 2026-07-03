@@ -154,18 +154,22 @@ def _fit_probe(Xtr, ytr, model, erase_patient=None):
 
 
 def _score_recs(recs, clf, sc, er):
-    scores, starts, seiz = [], [], []
+    """Per-recording window scores + everything the scorers need (SzCORE/NEDC/hand-
+    rolled). Returns a dict of per-recording lists so it can be cached for re-scoring."""
+    scores, starts, seiz, durs, patients = [], [], [], [], []
     for r in recs:
         Xs = sc.transform(r["emb"])
         if er is not None:
             Xs = er.transform(Xs)
         p = clf.predict_proba(Xs)[:, 1] if hasattr(clf, "predict_proba") else clf.predict(Xs)
-        scores.append(p); starts.append(r["starts"]); seiz.append(r["seiz"])
-    total_h = sum(r["dur_h"] for r in recs)
-    return scores, starts, seiz, total_h
+        scores.append(np.asarray(p, np.float32)); starts.append(np.asarray(r["starts"], np.float32))
+        seiz.append(list(r["seiz"])); durs.append(float(r["dur_h"]) * 3600.0)
+        patients.append(r["patient"])
+    return dict(scores=scores, starts=starts, seiz=seiz, durs=durs, patients=patients,
+                total_h=sum(r["dur_h"] for r in recs))
 
 
-def evaluate(train, dev, evl, model, win_s, erase_patient=False):
+def evaluate(train, dev, evl, model, win_s, erase_patient=False, cache_path=None):
     Xtr = np.concatenate([r["emb"] for r in train])
     ytr = np.concatenate([r["y"] for r in train])
     pid = None
@@ -173,14 +177,30 @@ def evaluate(train, dev, evl, model, win_s, erase_patient=False):
         pmap = {p: i for i, p in enumerate(sorted({r["patient"] for r in train}))}
         pid = np.concatenate([[pmap[r["patient"]]] * len(r["y"]) for r in train])
     clf, sc, er = _fit_probe(Xtr, ytr, model, erase_patient=pid)
-    dsc, dst, dse, dh = _score_recs(dev, clf, sc, er)
-    esc, est, ese, eh = _score_recs(evl, clf, sc, er)
-    dev_curve = es.sens_fa_curve(dsc, dst, win_s, dse, dh)
-    eval_curve = es.sens_fa_curve(esc, est, win_s, ese, eh)
-    return dict(dev_auc=es.event_sens_at_fa_auc(dev_curve),
-                eval_auc=es.event_sens_at_fa_auc(eval_curve),
-                eval_sens10=es.sensitivity_at(eval_curve, 10.0),
-                eval_sens1=es.sensitivity_at(eval_curve, 1.0))
+    D = _score_recs(dev, clf, sc, er)
+    E = _score_recs(evl, clf, sc, er)
+    if cache_path is not None:
+        import pickle
+        with open(cache_path, "wb") as f:
+            pickle.dump({"dev": D, "eval": E, "win_s": win_s, "model": model,
+                         "erase_patient": erase_patient}, f)
+
+    # PRIMARY scorer = SzCORE (EpilepsyBench / Sci-Rep 2026 reference); operating
+    # point tuned on dev, applied to eval; AUC over log10(FP/day) in [0.1,100].
+    dev_sz = es.szcore_curve(D["scores"], D["starts"], win_s, D["seiz"], D["durs"])
+    eval_sz = es.szcore_curve(E["scores"], E["starts"], win_s, E["seiz"], E["durs"])
+    op = es.szcore_operating_point(dev_sz, eval_sz)
+    out = dict(
+        szcore_auc=es.event_sens_at_fa_auc(eval_sz, 0.1, 100.0, fa_key="fa_per_day"),
+        szcore_sens1=es.sensitivity_at_fa_day(eval_sz, 1.0),
+        szcore_sens10=es.sensitivity_at_fa_day(eval_sz, 10.0),
+        szcore_op_sens=op["eval_sensitivity"], szcore_op_faday=op["eval_fa_per_day"],
+        szcore_op_f1=op["eval_f1"], szcore_threshold=op["threshold"],
+        dev_szcore_auc=es.event_sens_at_fa_auc(dev_sz, 0.1, 100.0, fa_key="fa_per_day"))
+    # SECONDARY: the lightweight hand-rolled any-overlap metric (continuity/cross-check).
+    eval_hr = es.sens_fa_curve(E["scores"], E["starts"], win_s, E["seiz"], E["total_h"])
+    out["handrolled_auc"] = es.event_sens_at_fa_auc(eval_hr)
+    return out
 
 
 def main():
@@ -215,20 +235,27 @@ def main():
     configs = [False] if a.only_identity_free else ([False, True] if a.both or a.identity_free else [False])
     if a.only_identity_free:
         configs = [True]
+    cache_dir = os.environ.get("EPILEPSY_CACHE_DIR", "/mnt/t9/epilepsy_runs/scores")
+    os.makedirs(cache_dir, exist_ok=True)
     results = {}
     for erase in configs:
+        cfg = "idfree" if erase else "normal"
+        cp = os.path.join(cache_dir, f"scores_{a.model}_{cfg}"
+                          + (f"_lim{a.limit}" if a.limit else "") + ".pkl")
         out = evaluate(splits["train"], splits["dev"], splits["eval"], a.model, a.win_s,
-                       erase_patient=erase)
+                       erase_patient=erase, cache_path=cp)
         results[erase] = out
         tag = " (identity-free)" if erase else ""
-        print(f"\n[epilepsy] {a.model}{tag}  Event-Sens@FA:")
-        print(f"  eval AUC(sens vs log FA/h)[0.1-100] = {out['eval_auc']:.3f}")
-        print(f"  eval sensitivity @ 10 FA/h = {out['eval_sens10']*100:.1f}% | @ 1 FA/h = {out['eval_sens1']*100:.1f}%")
-        print(f"  (dev AUC = {out['dev_auc']:.3f})")
+        print(f"\n[epilepsy] {a.model}{tag}  SzCORE (EpilepsyBench reference):", flush=True)
+        print(f"  eval Event-Sens@FA AUC(sens vs log10 FP/day)[0.1-100] = {out['szcore_auc']:.3f}")
+        print(f"  eval sensitivity @ 10 FP/day = {out['szcore_sens10']*100:.1f}% | @ 1 FP/day = {out['szcore_sens1']*100:.1f}%")
+        print(f"  dev-tuned operating point: sens {out['szcore_op_sens']*100:.1f}% @ "
+              f"{out['szcore_op_faday']:.1f} FP/day, F1 {out['szcore_op_f1']:.3f} (th={out['szcore_threshold']:.2f})")
+        print(f"  (dev AUC {out['dev_szcore_auc']:.3f}; hand-rolled eval AUC {out['handrolled_auc']:.3f}; scores cached -> {cp})")
     if False in results and True in results:
-        d = results[False]["eval_auc"] - results[True]["eval_auc"]
-        print(f"\n[epilepsy] {a.model} identity-free Δ(eval AUC) = {d:+.3f} "
-              f"(normal {results[False]['eval_auc']:.3f} - idfree {results[True]['eval_auc']:.3f})", flush=True)
+        d = results[False]["szcore_auc"] - results[True]["szcore_auc"]
+        print(f"\n[epilepsy] {a.model} identity-free Δ(SzCORE eval AUC) = {d:+.3f} "
+              f"(normal {results[False]['szcore_auc']:.3f} - idfree {results[True]['szcore_auc']:.3f})", flush=True)
 
 
 if __name__ == "__main__":
