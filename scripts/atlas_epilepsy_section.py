@@ -88,9 +88,11 @@ def label_windows(starts, win_s, seiz_events):
     return y
 
 
-def build_split(split, win_s, sfreq, limit=None):
-    """Per-recording windows for a split. Returns list of dicts + a stacked
-    (features-later) view. Keeps recordings separate (needed for event scoring)."""
+def build_split(split, win_s, sfreq, limit=None, embed_fn=None):
+    """Per-recording windows for a split (kept separate — needed for event scoring).
+    If embed_fn is given, each recording is embedded and its raw windows freed
+    INLINE (streaming), so peak RAM is one recording's windows, not the whole split
+    (~51 GB for full train). embed_fn(X) -> (n_win, d) per-window embeddings."""
     recs = []
     for edf, cbi, patient in iter_recordings(split, limit):
         X, starts = load_windows(edf, win_s, sfreq)
@@ -99,26 +101,35 @@ def build_split(split, win_s, sfreq, limit=None):
         seiz = es.load_csv_bi(cbi)
         y = label_windows(starts, win_s, seiz)
         dur_h = (starts[-1] + win_s) / 3600.0
-        recs.append(dict(X=X, y=y, starts=starts, seiz=seiz, patient=patient, dur_h=dur_h))
+        rec = dict(y=y, starts=starts, seiz=seiz, patient=patient, dur_h=dur_h)
+        if embed_fn is not None:
+            rec["emb"] = embed_fn(X)  # embed now, X freed at loop end
+        else:
+            rec["X"] = X
+        recs.append(rec)
     return recs
 
 
 # ---------- embeddings ----------
-def embed_recs(recs, model, sfreq, dev):
-    """Attach per-window embeddings 'emb' to each recording dict, by model."""
+def make_embed_fn(model, sfreq, dev):
+    """Return embed_fn(X) -> (n_win, d) per-window embeddings for a given model."""
     if model == "logbandpower":
-        for r in recs:
-            r["emb"] = np.stack([es.window_features(w, sfreq) for w in r["X"]])
-    elif model == "reve":
+        return lambda X: np.stack([es.window_features(w, sfreq) for w in X])
+    if model == "reve":
         from atlas_bci_section import embed_reve
-        for r in recs:
-            r["emb"] = embed_reve(r["X"], STD19, sfreq, dev)
-    else:
-        from atlas_bci_section import EEGFM, embed_eegfm
-        if model not in EEGFM:
-            raise SystemExit(f"unknown model {model!r}")
-        for r in recs:
-            r["emb"] = embed_eegfm(model, r["X"], STD19, sfreq, dev)
+        return lambda X: embed_reve(X, STD19, sfreq, dev)
+    from atlas_bci_section import EEGFM, embed_eegfm
+    if model not in EEGFM:
+        raise SystemExit(f"unknown model {model!r}")
+    return lambda X: embed_eegfm(model, X, STD19, sfreq, dev)
+
+
+def embed_recs(recs, model, sfreq, dev):
+    """Attach per-window embeddings 'emb' + free raw windows (non-streaming path)."""
+    embed_fn = make_embed_fn(model, sfreq, dev)
+    for r in recs:
+        r["emb"] = embed_fn(r["X"])
+        del r["X"]
     return recs
 
 
@@ -178,7 +189,10 @@ def main():
     ap.add_argument("--win-s", type=float, default=10.0)
     ap.add_argument("--sfreq", type=float, default=200.0)
     ap.add_argument("--limit", type=int, default=None, help="max recordings/split (dev/smoke)")
-    ap.add_argument("--identity-free", action="store_true")
+    ap.add_argument("--identity-free", action="store_true",
+                    help="also run the patient-identity-free (LEACE) probe (reuses embeddings)")
+    ap.add_argument("--both", action="store_true", help="run normal + identity-free (same as --identity-free)")
+    ap.add_argument("--only-identity-free", action="store_true", help="run ONLY the identity-free probe")
     a = ap.parse_args()
 
     import warnings
@@ -187,22 +201,34 @@ def main():
     dev_ = "cuda" if torch.cuda.is_available() else "cpu"
 
     print(f"[epilepsy] model={a.model} win={a.win_s}s limit={a.limit}", flush=True)
+    embed_fn = make_embed_fn(a.model, a.sfreq, dev_)  # streaming: embed inline, free X per rec
     splits = {}
     for s in ("train", "dev", "eval"):
-        recs = build_split(s, a.win_s, a.sfreq, a.limit)
-        recs = embed_recs(recs, a.model, a.sfreq, dev_)
+        recs = build_split(s, a.win_s, a.sfreq, a.limit, embed_fn=embed_fn)
         pos = sum(int(r["y"].sum()) for r in recs)
         tot = sum(len(r["y"]) for r in recs)
         print(f"  {s}: {len(recs)} recs, {tot} win ({pos} seizure), d={recs[0]['emb'].shape[1] if recs else 0}", flush=True)
         splits[s] = recs
 
-    out = evaluate(splits["train"], splits["dev"], splits["eval"], a.model, a.win_s,
-                   erase_patient=a.identity_free)
-    tag = " (identity-free)" if a.identity_free else ""
-    print(f"\n[epilepsy] {a.model}{tag}  Event-Sens@FA:")
-    print(f"  eval AUC(sens vs log FA/h)[0.1-100] = {out['eval_auc']:.3f}")
-    print(f"  eval sensitivity @ 10 FA/h = {out['eval_sens10']*100:.1f}% | @ 1 FA/h = {out['eval_sens1']*100:.1f}%")
-    print(f"  (dev AUC = {out['dev_auc']:.3f})")
+    # Embeddings are attached per-recording, so both the normal and the
+    # patient-identity-free probe reuse them (no second EDF load/embed pass).
+    configs = [False] if a.only_identity_free else ([False, True] if a.both or a.identity_free else [False])
+    if a.only_identity_free:
+        configs = [True]
+    results = {}
+    for erase in configs:
+        out = evaluate(splits["train"], splits["dev"], splits["eval"], a.model, a.win_s,
+                       erase_patient=erase)
+        results[erase] = out
+        tag = " (identity-free)" if erase else ""
+        print(f"\n[epilepsy] {a.model}{tag}  Event-Sens@FA:")
+        print(f"  eval AUC(sens vs log FA/h)[0.1-100] = {out['eval_auc']:.3f}")
+        print(f"  eval sensitivity @ 10 FA/h = {out['eval_sens10']*100:.1f}% | @ 1 FA/h = {out['eval_sens1']*100:.1f}%")
+        print(f"  (dev AUC = {out['dev_auc']:.3f})")
+    if False in results and True in results:
+        d = results[False]["eval_auc"] - results[True]["eval_auc"]
+        print(f"\n[epilepsy] {a.model} identity-free Δ(eval AUC) = {d:+.3f} "
+              f"(normal {results[False]['eval_auc']:.3f} - idfree {results[True]['eval_auc']:.3f})", flush=True)
 
 
 if __name__ == "__main__":
