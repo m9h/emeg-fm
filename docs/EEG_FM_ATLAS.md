@@ -52,14 +52,19 @@ the complete **148-dataset MOABB** roster folded in, and the coverage map vs Neu
 | **BCI** | `atlas_bci_section.py` | MOABB∩NEMAR = 2 (TrianaGuzman2024 MI ds005342, Chailloux2020 P300 ds003190) | LOSO norm-BA + identity-free Δ | ✅ classical MI 59.8%, REVE 54% — FMs weak on MI |
 | **CogNeuro** | `atlas_cogneuro_section.py` (+ `erpcore_luck_parity.py` loader) | ERP CORE 7 components (same ~40 subj) | per-comp LOSO + within-subject + LEACE | ✅ **REVE mean 64.1% vs classical 54.4% over all 7 components, identity-Δ≈0** — FMs win on cognition, no trap |
 | **Brain-to-Image** | `atlas_brain2image_section.py` (+ `extract_alljoined_reve.py`) | Alljoined EEG↔image | EEG→CLIP top-k retrieval | ✅ REVE top-1 ~2× chance (smoke) — FMs' natural-vision domain |
-| **Epilepsy** | `atlas_epilepsy_section.py` + `epilepsy_scorer.py` + `nedc_crosscheck.py` | TUSZ v2.0.3 (train4667/dev1832/eval865) | SzCORE sens@1/10 FP/24h + F1 (+ official NEDC v6 OVLP/TAES cross-check) + patient-id-free Δ | ✅ **both FMs (REVE, EEGDINO) COLLAPSE to 0% usable sens when patient-identity erased; only classical survives (40.9→25.0%)**. Normal: classical≈EEGDINO (F1 .53/.55) > REVE. `docs/epilepsy_tusz_results.md` |
-| Sleep | — | NSRR | hypnogram/staging | ⚪ later |
+| **Epilepsy** | `atlas_epilepsy_section.py` + `epilepsy_scorer.py` + `nedc_crosscheck.py` | TUSZ v2.0.3 (train4667/dev1832/eval865) + **SeizeIT2** (ds005873, wearable, 89/18/18 subj) | SzCORE sens@1/10 FP/24h + F1 (+ official NEDC v6 OVLP/TAES cross-check) + patient-id-free Δ | ✅ **both FMs (REVE, EEGDINO) COLLAPSE to 0% usable sens when patient-identity erased; only classical survives (40.9→25.0%)**. Normal: classical≈EEGDINO (F1 .53/.55) > REVE. SeizeIT2 (2-ch wearable) weaker overall (AUC 0.062→0.043) but same Δ direction; REVE unsupported (proprietary electrode labels). `docs/epilepsy_tusz_results.md` |
+| **Sleep** | `atlas_sleep_section.py` | Sleep-EDF Expanded (197 recs, 137/30/30 subj-disjoint) | Balanced-acc + Cohen's κ (5-class AASM) + patient-id-free Δ | ✅ **classical κ 0.551→0.508 (Δ+0.043, mild); REVE κ 0.459→0.202 (Δ+0.257, SEVERE)** — 2nd domain confirming FMs lean far more on identity than classical. HMC (12.9GB, NeuroAtlas-named) downloaded, not yet wired. `docs/sleep_edf_results.md` |
 
 ## The thesis (what the results say)
 
 - **FMs earn their keep on evoked/cognitive responses** (ERP CORE, N170) but **classical wins
-  on spectral tasks** (brain-age, MI). Naturalistic vision (Alljoined) is where FMs should win
-  most.
+  on spectral tasks** (brain-age, MI, sleep staging). Naturalistic vision (Alljoined) is where
+  FMs should win most.
+- **The identity trap is now confirmed across TWO independent domains, not one-off**: TUSZ
+  epilepsy (both FMs collapse to 0% usable sensitivity; classical Δ+0.044 mild) and Sleep-EDF
+  staging (REVE Δ+0.257 severe kappa drop; classical Δ+0.043 mild) show the SAME shape —
+  classical spectral features barely lean on subject identity, FMs lean on it heavily. This is
+  the repeated empirical signature, not a single result.
 - **The identity trap is a spectrum**: clean on ERP CORE (Δ≈0, same-subject control) → grows on
   Alljoined (naturalistic) / HBN-task (developmental) → **DRAMATIC on TUSZ epilepsy (CONFIRMED
   2026-07-03): both FMs (REVE, EEGDINO) collapse to 0% usable sensitivity when patient identity is
