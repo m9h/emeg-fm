@@ -25,6 +25,17 @@ def test_mask_to_events_no_seizure():
     assert hk._mask_to_events(np.zeros(5, dtype=bool)) == []
 
 
+def test_channel_rename_uppercases_mixed_case_names():
+    """Regression: Helsinki's raw channels are mixed-case ('Fp1'), but STD19 is
+    all-caps ('FP1'). Without upper(), every recording's channel match silently
+    fails (0 recordings loaded, no error) -- exact bug hit on the real corpus."""
+    import re
+    raw_names = ["EEG Fp1-REF", "EEG Cz-REF", "EEG T3-REF"]
+    ren = {c: re.sub(r"^EEG\s+|-REF$", "", c).strip().upper() for c in raw_names}
+    assert set(ren.values()) == {"FP1", "CZ", "T3"}
+    assert all(v in hk.STD19 for v in ren.values())
+
+
 def test_load_consensus_majority_vote(tmp_path, monkeypatch):
     # 3 annotators, recording "7": A=[1,1,0], B=[1,0,0], C=[0,0,0]
     # majority (>=2): [1,0,0]
