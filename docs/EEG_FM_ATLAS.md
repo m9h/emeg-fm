@@ -41,6 +41,9 @@ loaders are analysis-only (no real forward); `Interpolated*` SVD-fails on *small
 (≤~18 ch) → for those use montage-flexible models (TS-FMs, REVE-3D-coords); custom-code models
 (ZUNA) keep a hand `HFModelAdapter` in `emeg_fm/eeg_fm.py`.
 
+**Full dataset manifest:** `docs/atlas_datasets.md` — what's wired-and-run per section,
+the complete **148-dataset MOABB** roster folded in, and the coverage map vs NeuroAtlas's 42.
+
 ## The Atlas sections (script · data · metric · key result)
 
 | Domain | Script | Data (open) | Metric | Status / headline |
