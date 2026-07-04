@@ -49,7 +49,7 @@ loaders are analysis-only (no real forward); `Interpolated*` SVD-fails on *small
 | **BCI** | `atlas_bci_section.py` | MOABB∩NEMAR = 2 (TrianaGuzman2024 MI ds005342, Chailloux2020 P300 ds003190) | LOSO norm-BA + identity-free Δ | ✅ classical MI 59.8%, REVE 54% — FMs weak on MI |
 | **CogNeuro** | `atlas_cogneuro_section.py` (+ `erpcore_luck_parity.py` loader) | ERP CORE 7 components (same ~40 subj) | per-comp LOSO + within-subject + LEACE | ✅ **REVE mean 64.1% vs classical 54.4% over all 7 components, identity-Δ≈0** — FMs win on cognition, no trap |
 | **Brain-to-Image** | `atlas_brain2image_section.py` (+ `extract_alljoined_reve.py`) | Alljoined EEG↔image | EEG→CLIP top-k retrieval | ✅ REVE top-1 ~2× chance (smoke) — FMs' natural-vision domain |
-| **Epilepsy** | `atlas_epilepsy_section.py` + `epilepsy_scorer.py` | TUSZ v2.0.3 (`/data/datasets/tuh_eeg/tuh_eeg_seizure/v2.0.3/`) | Event-Sens@FA (SzCORE any-overlap) + patient-id-free Δ | 🟢 runner built+validated on partial data; awaiting full TUSZ download |
+| **Epilepsy** | `atlas_epilepsy_section.py` + `epilepsy_scorer.py` + `nedc_crosscheck.py` | TUSZ v2.0.3 (train4667/dev1832/eval865) | SzCORE sens@1/10 FP/24h + F1 (+ official NEDC v6 OVLP/TAES cross-check) + patient-id-free Δ | ✅ **both FMs (REVE, EEGDINO) COLLAPSE to 0% usable sens when patient-identity erased; only classical survives (40.9→25.0%)**. Normal: classical≈EEGDINO (F1 .53/.55) > REVE. `docs/epilepsy_tusz_results.md` |
 | Sleep | — | NSRR | hypnogram/staging | ⚪ later |
 
 ## The thesis (what the results say)
@@ -57,10 +57,13 @@ loaders are analysis-only (no real forward); `Interpolated*` SVD-fails on *small
 - **FMs earn their keep on evoked/cognitive responses** (ERP CORE, N170) but **classical wins
   on spectral tasks** (brain-age, MI). Naturalistic vision (Alljoined) is where FMs should win
   most.
-- **The identity trap is a spectrum**: clean on ERP CORE (Δ≈0, same-subject control) → predicted
-  to grow on Alljoined (naturalistic) → HBN-task (developmental) → TUSZ (patient-specific seizures).
-  Making it *appear vs not* is the differentiated result NeuroAtlas can't show (they only do an
-  oculomotor confound). Foundations: `docs/MOABB_IDENTITY_TRAP_FM_VS_TCM.md`, FMScope
+- **The identity trap is a spectrum**: clean on ERP CORE (Δ≈0, same-subject control) → grows on
+  Alljoined (naturalistic) / HBN-task (developmental) → **DRAMATIC on TUSZ epilepsy (CONFIRMED
+  2026-07-03): both FMs (REVE, EEGDINO) collapse to 0% usable sensitivity when patient identity is
+  LEACE-erased, while classical survives (40.9→25.0%)** — the FMs' seizure "detection" rides on
+  patient-specific signatures, not seizure physiology. Making the trap *appear vs not* across
+  domains is the differentiated result NeuroAtlas can't show (they only do an oculomotor confound).
+  Foundations: `docs/epilepsy_tusz_results.md`, `docs/MOABB_IDENTITY_TRAP_FM_VS_TCM.md`, FMScope
   (arXiv:2606.06647), the vendored `fmscope/` package (`audit_cell`, LEACE).
 
 ## Models
