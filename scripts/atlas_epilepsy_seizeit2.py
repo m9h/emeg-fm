@@ -93,9 +93,13 @@ def make_embed_fn(model, sfreq, dev, ch_names):
 
 
 def subject_splits(limit=None, seed_frac=(0.7, 0.15, 0.15)):
+    """Subject-disjoint 70/15/15. Floors dev/eval at >=1 subject (else a small
+    --limit smoke test rounds dev to 0 -> degenerate, untuned operating point)."""
     subs = sorted({s for _, _, s in iter_recordings(limit)})
     n = len(subs)
-    n_tr, n_dv = int(n * seed_frac[0]), int(n * seed_frac[1])
+    n_dv = max(1, int(n * seed_frac[1])) if n >= 3 else 0
+    n_ev = max(1, int(n * seed_frac[2])) if n >= 3 else 0
+    n_tr = n - n_dv - n_ev
     return set(subs[:n_tr]), set(subs[n_tr:n_tr + n_dv]), set(subs[n_tr + n_dv:])
 
 

@@ -26,7 +26,8 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import epilepsy_scorer as es  # noqa: E402  (reuses window_features, LEACE plumbing pattern)
 
-SLEEP_ROOT = os.environ.get("SLEEP_EDF_ROOT", "/mnt/t9/sleep_edf")
+SLEEP_ROOT = os.environ.get(
+    "SLEEP_EDF_ROOT", "/mnt/t9/sleep_edf/sleep-edf-database-expanded-1.0.0")
 EEG_CHANNELS = ["EEG Fpz-Cz", "EEG Pz-Oz"]
 STAGE_MAP = {
     "Sleep stage W": 0, "Sleep stage 1": 1, "Sleep stage 2": 2,
@@ -123,9 +124,13 @@ def make_embed_fn(model, sfreq, dev):
 
 
 def subject_splits(limit=None, seed_frac=(0.7, 0.15, 0.15)):
+    """Subject-disjoint 70/15/15. Floors dev/eval at >=1 subject (else a small
+    --limit smoke test rounds a split to 0 -> degenerate untuned evaluation)."""
     subs = sorted({s for _, _, s in iter_recordings(limit)})
     n = len(subs)
-    n_tr, n_dv = int(n * seed_frac[0]), int(n * seed_frac[1])
+    n_dv = max(1, int(n * seed_frac[1])) if n >= 3 else 0
+    n_ev = max(1, int(n * seed_frac[2])) if n >= 3 else 0
+    n_tr = n - n_dv - n_ev
     return set(subs[:n_tr]), set(subs[n_tr:n_tr + n_dv]), set(subs[n_tr + n_dv:])
 
 
