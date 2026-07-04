@@ -68,25 +68,58 @@ Rodrigues2017 (19), Hinss2021 (15), Cattan2019_PHMD (12)
 
 ---
 
-## C. NeuroAtlas coverage comparison (their 42 vs ours)
+## C. NeuroAtlas dataset list (mined from the paper) + coverage cross-check
 
-NeuroAtlas (arXiv:2605.14698): **42 datasets, 260k hours**, grouped as **clinical EEG
-(epilepsy, sleep medicine, brain-age)** + **BCI**. Their exact 42-dataset enumeration is
-**not in the abstract** — it needs a pass over the paper PDF/appendix (TODO: transcribe
-Table into this section). Domain-level coverage map:
+NeuroAtlas (arXiv:2605.14698): **42 datasets, ∼260k hours** = **7 epilepsy + 15 sleep +
+17 BCI** (+ brain-age computed on the sleep/PhysioNet cohorts). The abstract omits the
+table; the following is mined from the body text, figures, and captions (≈37 of 42
+individually named — the rest sit unlabeled in Appendix B / Fig. 2–3 heatmap cells).
 
-| NeuroAtlas domain | Our Atlas coverage | Status |
+**Epilepsy (7)** — "∼1,410 patients, ∼58,374 h, ∼9,019 annotated seizures":
+Helsinki, SeizeIT1, SeizeIT2, **TUSZ**, Bonn, **TUAB** (Temple Abnormal), NMT.
+
+**Sleep (15)** — "∼15.8k patients, ∼201k h" (∼7 named): Sleep-EDF (Expanded), ISRUC-Sleep,
+DREEM, HMC (Haaglanden Medisch Centrum), MASS (Montreal Archive), DCSM, + PhysioNet-2026;
+remaining ∼7 unnamed in body text.
+
+**Brain-age** — computed on the sleep cohorts + a PhysioNet-2026 healthy/CI holdout;
+Sun et al. as the task-specific baseline (no separate corpora).
+
+**BCI (17)** — "adding also two cognitive tasks and one emotion recognition task":
+MI ×6 (PhysioNet-MI + 5 unnamed), P300/ERP (Brain Invaders **BI2014a**, **ERP CORE**,
+Hoffmann P300), SSVEP (Wang 40-class speller + 1), cognitive ×2, emotion (**DREAMER**).
+Supervised-pretraining aside: Siena Scalp EEG.
+
+### Dataset-for-dataset cross-check (theirs → ours)
+
+| NeuroAtlas dataset | Domain | Do we have it? |
 |---|---|---|
-| Epilepsy | TUSZ v2.0.3 (same corpus family) | ✅ done, dual-scored (SzCORE + NEDC v6) |
-| Brain-age | TDBRAIN + LEMON + HBN | ✅ done |
-| Sleep medicine | NSRR (staged) | ⚪ not built |
-| BCI | MOABB (148-dataset universe; 2 via NEMAR in-section) | ✅ partial (BCI section = 2; full universe in the id-free leaderboard) |
-| **Cognitive/ERP** | ERP CORE 7-comp | ✅ **ours adds this — NeuroAtlas has no ERP-CORE cognitive arm** |
-| **Brain-to-image** | Alljoined | ✅ **ours adds this** |
-| **Identity-free (LEACE) axis** | every section | ✅ **ours adds this — their only confound control is oculomotor** |
+| **TUSZ** | epilepsy | ✅ **have + done** (dual-scored SzCORE + NEDC v6) |
+| TUAB | epilepsy/abnormal | 🟡 TUEG v2.0.2 staged (same Temple family) |
+| Bonn / NMT / Helsinki / SeizeIT1 / SeizeIT2 | epilepsy | ❌ not staged |
+| Sleep-EDF | sleep | 🟡 covered by neuralfetch loader; section not built |
+| ISRUC / DREEM / HMC / MASS / DCSM + NSRR | sleep | ❌/🟡 NSRR staged; these specific sets not wired |
+| PhysioNet-MI | MI | ✅ **in MOABB** (`PhysionetMI`, 109) |
+| Brain Invaders **BI2014a** | P300 | ✅ **in MOABB** (`BI2014a`, 64) |
+| **ERP CORE** | ERP | ✅ **have + done** (7-comp CogNeuro section; also MOABB `ErpCore2021_*`) |
+| Wang 40-class SSVEP | SSVEP | ✅ **in MOABB** (`Wang2016` 34 / `Kim2025BetaRange` 40) |
+| Hoffmann P300 | P300 | ❌ (MOABB has `EPFLP300` — related Hoffmann-lab set) |
+| DREAMER (emotion) | affect | ❌ not in MOABB |
+| brain-age (their sleep-based) | brain-age | ✅ **have via TDBRAIN + LEMON + HBN** (different corpora, same task) |
 
-Our edge: MOABB's 148 open BCI datasets + the open NEMAR pool (~250 BIDS) vs their 42
-(mostly gated), plus the CogNeuro, Brain-to-image, and identity-free axes they lack.
+**Takeaway:** MOABB already contains **their key BCI datasets** (PhysioNet-MI, BI2014a,
+ERP CORE, Wang SSVEP) — so their entire BCI arm is reproducible from our 148-dataset roster
+with no new staging. The gaps are their **non-Temple epilepsy** sets (Bonn/NMT/SeizeIT) and
+the **sleep** cohorts (needs the NSRR/DREEM section built).
+
+### What we add that NeuroAtlas lacks
+
+| Axis | Ours | Theirs |
+|---|---|---|
+| **Cognitive/ERP** (ERP CORE 7-comp) | ✅ | only BI2014a/ERP-CORE as BCI, no cognitive analysis |
+| **Brain-to-image** (Alljoined EEG→CLIP) | ✅ | ✗ |
+| **Identity-free (LEACE) confound axis** | ✅ every section | ✗ (only an oculomotor confound) |
+| **Open-data footprint** | MOABB 148 + NEMAR ∼250 BIDS | 42, several clinically gated |
 
 ---
 
