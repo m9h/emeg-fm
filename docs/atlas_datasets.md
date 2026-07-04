@@ -86,9 +86,14 @@ remaining ∼7 unnamed in body text.
 Sun et al. as the task-specific baseline (no separate corpora).
 
 **BCI (17)** — "adding also two cognitive tasks and one emotion recognition task":
-MI ×6 (PhysioNet-MI + 5 unnamed), P300/ERP (Brain Invaders **BI2014a**, **ERP CORE**,
-Hoffmann P300), SSVEP (Wang 40-class speller + 1), cognitive ×2, emotion (**DREAMER**).
+MI ×6 (PhysioNet-MI + 5 unnamed), P300/ERP (Brain Invaders **BI2014a**, Hoffmann P300),
+SSVEP (Wang 40-class speller + 1), cognitive ×2, emotion (**DREAMER**).
 Supervised-pretraining aside: Siena Scalp EEG.
+**NOT ERP CORE** — verified 2026-07-03: the strings "ERP CORE"/N170/N2pc/N400/ERN/LRP appear
+NOWHERE in the paper; Kappenman et al. 2021 is in the reference list but never used. Their
+ERP arm is plain P300 (BI2014a), so our 7-component ERP-CORE CogNeuro section is genuinely
+additive. (An earlier extraction wrongly listed "ERP CORE" as theirs — a citation-vs-dataset
+confusion, corrected here.)
 
 ### Dataset-for-dataset cross-check (theirs → ours)
 
@@ -101,7 +106,6 @@ Supervised-pretraining aside: Siena Scalp EEG.
 | ISRUC / DREEM / HMC / MASS / DCSM + NSRR | sleep | ❌/🟡 NSRR staged; these specific sets not wired |
 | PhysioNet-MI | MI | ✅ **in MOABB** (`PhysionetMI`, 109) |
 | Brain Invaders **BI2014a** | P300 | ✅ **in MOABB** (`BI2014a`, 64) |
-| **ERP CORE** | ERP | ✅ **have + done** (7-comp CogNeuro section; also MOABB `ErpCore2021_*`) |
 | Wang 40-class SSVEP | SSVEP | ✅ **in MOABB** (`Wang2016` 34 / `Kim2025BetaRange` 40) |
 | Hoffmann P300 | P300 | ❌ (MOABB has `EPFLP300` — related Hoffmann-lab set) |
 | DREAMER (emotion) | affect | ❌ not in MOABB |
@@ -123,7 +127,6 @@ PhysioNet / Zenodo / OSF / Temple / dedicated portals, not OpenNeuro. But nearly
 | **PhysioNet-MI** | MI | ✅ **ds004362** | also PhysioNet `eegmmidb`; **we already reproduced ds004362 from-raw** |
 | **SeizeIT2** | epilepsy | ✅ **ds005873** | OpenNeuro (125 pt, 883 focal sz) — pullable |
 | SeizeIT1 | epilepsy | 🟡 likely (SeizeIT2 sibling; unverified ds) | KU Leuven RDR |
-| ERP CORE | ERP | ✗ (ds003061 is a *different* oddball set) | ✅ OSF `thsqg` — **we have it**; MOABB `ErpCore2021_*` |
 | BI2014a | P300 | ✗ | ✅ Zenodo (via MOABB `BI2014a`) |
 | Wang 40-class SSVEP | SSVEP | ✗ | ✅ Tsinghua portal (via MOABB `Wang2016`) |
 | Hoffmann P300 | P300 | ✗ | ✅ EPFL (MOABB has sibling `EPFLP300`) |
@@ -148,7 +151,7 @@ Helsinki/Siena via Zenodo/PhysioNet), and the sleep cohorts (PhysioNet/portals).
 
 | Axis | Ours | Theirs |
 |---|---|---|
-| **Cognitive/ERP** (ERP CORE 7-comp) | ✅ | only BI2014a/ERP-CORE as BCI, no cognitive analysis |
+| **Cognitive/ERP** (ERP CORE 7-comp, Luck battery) | ✅ | ✗ — only plain P300 (BI2014a) as BCI; ERP CORE cited-but-unused, no cognitive-component analysis |
 | **Brain-to-image** (Alljoined EEG→CLIP) | ✅ | ✗ |
 | **Identity-free (LEACE) confound axis** | ✅ every section | ✗ (only an oculomotor confound) |
 | **Open-data footprint** | MOABB 148 + NEMAR ∼250 BIDS | 42, several clinically gated |
