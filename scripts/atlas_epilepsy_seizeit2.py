@@ -87,9 +87,19 @@ def make_embed_fn(model, sfreq, dev, ch_names):
     if model == "logbandpower":
         return lambda X: np.stack([es.window_features(w, sfreq) for w in X])
     if model == "reve":
-        from atlas_bci_section import embed_reve
-        return lambda X: embed_reve(X, ch_names, sfreq, dev)
-    raise SystemExit(f"unknown model {model!r} (SeizeIT2 supports logbandpower, reve)")
+        # SeizeIT2's electrodes ('BTEleft SD', 'CROSStop SD', ...) are proprietary
+        # Byteflies SensorDot wearable labels -- behind-the-ear / cross-head
+        # references with NO honest single-electrode correspondence to REVE's
+        # standard_1005 name vocabulary (unlike Sleep-EDF's bipolar derivations,
+        # which at least have genuine 10-20 endpoints). Forcing an approximate
+        # mapping here would be undocumented guesswork feeding a real result, so
+        # classical-only for this dataset rather than a shaky FM number.
+        raise SystemExit(
+            "SeizeIT2 REVE unsupported: electrode names "
+            f"{ch_names!r} are proprietary wearable labels with no defensible "
+            "anatomical mapping to REVE's standard_1005 vocabulary. "
+            "Use --model logbandpower.")
+    raise SystemExit(f"unknown model {model!r} (SeizeIT2 supports logbandpower only -- see reve note)")
 
 
 def subject_splits(limit=None, seed_frac=(0.7, 0.15, 0.15)):
