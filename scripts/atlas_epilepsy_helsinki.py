@@ -111,10 +111,13 @@ def load_windows(edf, win_s=WIN_S, sfreq_out=100.0):
         raw = mne.io.read_raw_edf(edf, preload=True, verbose="error")
     except Exception:
         return None, None, None
-    # Helsinki's raw channel names are mixed-case ("Fp1", not "FP1" like TUSZ) --
-    # uppercase after stripping so they match STD19's all-caps convention (else
-    # every recording's channel-match fails silently -> 0 recordings loaded).
-    ren = {c: re.sub(r"^EEG\s+|-REF$", "", c).strip().upper() for c in raw.ch_names}
+    # Helsinki's raw channel names are mixed-case ("Fp1", not "FP1" like TUSZ),
+    # AND the "-REF"/"-Ref" suffix casing is INCONSISTENT ACROSS RECORDINGS
+    # (eeg1.edf: "EEG Fp1-REF"; eeg2.edf: "EEG Fp1-Ref") -- re.IGNORECASE on the
+    # strip + uppercase after so they match STD19's all-caps convention (else
+    # most recordings' channel-match fails silently -> 0 recordings loaded).
+    ren = {c: re.sub(r"^EEG\s+|-REF$", "", c, flags=re.IGNORECASE).strip().upper()
+           for c in raw.ch_names}
     raw.rename_channels(ren)
     present = [c for c in STD19 if c in raw.ch_names]
     if len(present) < len(STD19):
