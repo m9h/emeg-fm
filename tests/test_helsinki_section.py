@@ -47,3 +47,19 @@ def test_load_consensus_majority_vote(tmp_path, monkeypatch):
     monkeypatch.setattr(hk, "ROOT", str(root))
     consensus = hk._load_consensus(7)
     assert consensus.tolist() == [True, False, False]
+
+
+def test_load_consensus_handles_ragged_shorter_recording(tmp_path, monkeypatch):
+    """Regression: the real corpus's matrix is ragged -- each column has values
+    only for its own recording's duration; later rows are blank ("") for shorter
+    recordings even while OTHER (longer) columns in the same row still have data.
+    Recording "1" here is shorter (2 rows) than recording "9" (3 rows)."""
+    root = tmp_path
+    header = "1,9\n"
+    (root / "annotations_2017_A.csv").write_text(header + "0,1\n1,0\n,0\n")
+    (root / "annotations_2017_B.csv").write_text(header + "0,1\n0,0\n,0\n")
+    (root / "annotations_2017_C.csv").write_text(header + "0,0\n1,0\n,0\n")
+    monkeypatch.setattr(hk, "ROOT", str(root))
+    # recording 1 (idx 0) truncates at the blank 3rd row -> only 2 valid samples
+    consensus = hk._load_consensus(1)
+    assert consensus.tolist() == [False, True]   # majority: row0 all-0, row1 A&C=1

@@ -53,14 +53,26 @@ def _to_mne_casing(ch_names):
 
 def _load_consensus(recording_num):
     """Majority-vote (>=2 of 3 annotators) 1 Hz seizure mask for one recording
-    column. Returns a bool array, one sample per second."""
+    column. Returns a bool array, one sample per second.
+
+    The annotation matrix is RAGGED BY DESIGN: each column has valid 0/1 values
+    only for its own recording's actual duration; rows beyond a shorter
+    recording's length are blank in that column while longer recordings still
+    have data in the same row. Truncate at the first blank cell (the recording's
+    real end), don't try to parse it as int."""
     cols = []
     for a in ANNOTATORS:
         path = os.path.join(ROOT, f"annotations_2017_{a}.csv")
         with open(path) as f:
             header = f.readline().strip().split(",")
             idx = header.index(str(recording_num))
-            vals = [int(line.strip().split(",")[idx]) for line in f]
+            vals = []
+            for line in f:
+                parts = line.rstrip("\n").split(",")
+                v = parts[idx] if idx < len(parts) else ""
+                if v == "":
+                    break
+                vals.append(int(v))
         cols.append(np.asarray(vals, dtype=int))
     n = min(len(c) for c in cols)
     stacked = np.stack([c[:n] for c in cols])
