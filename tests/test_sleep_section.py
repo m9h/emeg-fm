@@ -57,8 +57,9 @@ def test_load_epochs_shapes_and_labels(tmp_path=None):
     raw = _synthetic_raw(n_epochs_per_stage=2)
     psg = "/mnt/t9/_synth_test-PSG.edf"
     # mne.Annotations.save only supports FIF/CSV/TXT (not EDF); real Sleep-EDF
-    # Hypnograms ARE genuine EDF+ files, but mne.read_annotations dispatches purely
-    # on extension, so a .csv round-trip exercises load_epochs' actual logic exactly.
+    # Hypnograms ARE genuine EDF+ files, but mne.read_annotations dispatches
+    # purely on extension, so a .csv round-trip exercises load_epochs' actual
+    # logic exactly.
     hyp = "/mnt/t9/_synth_test-Hypnogram.csv"
     mne.export.export_raw(psg, raw, fmt="edf", overwrite=True, verbose="error")
     raw.annotations.save(hyp, overwrite=True)
@@ -68,3 +69,27 @@ def test_load_epochs_shapes_and_labels(tmp_path=None):
     assert X.shape[2] == int(sl.EPOCH_S * raw.info["sfreq"])
     assert set(np.unique(y)) <= {0, 1, 2, 3, 4}
     assert len(y) == len(X)
+
+
+def test_load_epochs_with_nonzero_crop_offset_recovers_correct_length():
+    """Regression test for the MNE crop/events_from_annotations first_samp bug:
+    after raw.crop(t0>0), events_from_annotations returns onset samples relative
+    to the (now nonzero) raw.first_samp, but raw.get_data() is 0-indexed. Without
+    subtracting first_samp, every epoch's slice lands out-of-bounds (empty) ->
+    load_epochs silently returns (None, None) even though valid epochs exist."""
+    import mne
+    raw = _synthetic_raw(n_epochs_per_stage=4)
+    psg = "/mnt/t9/_synth_crop_test-PSG.edf"
+    hyp = "/mnt/t9/_synth_crop_test-Hypnogram.csv"
+    mne.export.export_raw(psg, raw, fmt="edf", overwrite=True, verbose="error")
+    raw.annotations.save(hyp, overwrite=True)
+    # crop_wake_min small enough that the crop actually trims (nonzero t0)
+    X, y = sl.load_epochs(psg, hyp, crop_wake_min=0.5)
+    assert X is not None, "load_epochs must not silently drop all epochs after crop"
+    assert len(X) > 0
+    assert X.shape[2] == int(sl.EPOCH_S * raw.info["sfreq"])
+
+
+def test_reve_channel_names_map_bipolar_derivations_to_anchor_electrode():
+    ch = sl._reve_channel_names()
+    assert ch == ["Cz", "Oz"]   # Fpz-Cz -> Cz, Pz-Oz -> Oz (anchor/second electrode)

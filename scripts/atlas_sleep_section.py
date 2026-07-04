@@ -86,9 +86,16 @@ def load_epochs(psg, hyp, crop_wake_min=30.0):
         return None, None
     n = int(EPOCH_S * sfreq)
     data = raw.get_data()
+    # events_from_annotations returns sample indices relative to raw.first_samp;
+    # after raw.crop(), first_samp becomes the crop offset (nonzero), while
+    # get_data() is always 0-indexed -> must subtract first_samp or every slice
+    # lands out-of-bounds (silently empty -> every epoch dropped -> chance-level
+    # "results" with no error). Classic MNE crop+events_from_annotations gotcha.
+    off = raw.first_samp
     X, y = [], []
     for onset_samp, _, label in events:
-        seg = data[:, onset_samp:onset_samp + n]
+        i = onset_samp - off
+        seg = data[:, i:i + n]
         if seg.shape[1] == n:
             X.append(seg); y.append(label)
     if not X:
@@ -114,12 +121,26 @@ def build_split(subjects, limit=None, embed_fn=None):
     return recs
 
 
+def _reve_channel_names():
+    """Sleep-EDF channels are hardware BIPOLAR derivations ('EEG Fpz-Cz',
+    'EEG Pz-Oz'), not real single-electrode positions -- REVE's name-based 3D
+    lookup needs a real electrode. Approximate each derivation by its anchor
+    (second) electrode, the conventional choice (the derivation is referenced
+    to it): Fpz-Cz -> Cz, Pz-Oz -> Oz. Documented approximation, not exact."""
+    out = []
+    for c in EEG_CHANNELS:
+        name = c.replace("EEG ", "").strip()
+        out.append(name.split("-")[-1] if "-" in name else name)
+    return out
+
+
 def make_embed_fn(model, sfreq, dev):
     if model == "logbandpower":
         return lambda X: np.stack([es.window_features(w, sfreq) for w in X])
     if model == "reve":
         from atlas_bci_section import embed_reve
-        return lambda X: embed_reve(X, EEG_CHANNELS, sfreq, dev)
+        ch = _reve_channel_names()
+        return lambda X: embed_reve(X, ch, sfreq, dev)
     raise SystemExit(f"unknown model {model!r} (sleep section supports logbandpower, reve)")
 
 
