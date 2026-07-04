@@ -112,6 +112,38 @@ ERP CORE, Wang SSVEP) — so their entire BCI arm is reproducible from our 148-d
 with no new staging. The gaps are their **non-Temple epilepsy** sets (Bonn/NMT/SeizeIT) and
 the **sleep** cohorts (needs the NSRR/DREEM section built).
 
+### Where NeuroAtlas's 42 actually live (OpenNeuro vs other open vs gated)
+
+"Downloadable from OpenNeuro" is a **narrow** set — most NeuroAtlas datasets live on
+PhysioNet / Zenodo / OSF / Temple / dedicated portals, not OpenNeuro. But nearly all are
+**openly obtainable** somewhere, and MOABB auto-fetches its BCI ones from their native repos.
+
+| Dataset | Domain | On OpenNeuro? | Open source (where) |
+|---|---|---|---|
+| **PhysioNet-MI** | MI | ✅ **ds004362** | also PhysioNet `eegmmidb`; **we already reproduced ds004362 from-raw** |
+| **SeizeIT2** | epilepsy | ✅ **ds005873** | OpenNeuro (125 pt, 883 focal sz) — pullable |
+| SeizeIT1 | epilepsy | 🟡 likely (SeizeIT2 sibling; unverified ds) | KU Leuven RDR |
+| ERP CORE | ERP | ✗ (ds003061 is a *different* oddball set) | ✅ OSF `thsqg` — **we have it**; MOABB `ErpCore2021_*` |
+| BI2014a | P300 | ✗ | ✅ Zenodo (via MOABB `BI2014a`) |
+| Wang 40-class SSVEP | SSVEP | ✗ | ✅ Tsinghua portal (via MOABB `Wang2016`) |
+| Hoffmann P300 | P300 | ✗ | ✅ EPFL (MOABB has sibling `EPFLP300`) |
+| DREAMER | emotion | ✗ | 🟡 Zenodo (application) |
+| Sleep-EDF / HMC | sleep | ✗ | ✅ PhysioNet |
+| ISRUC / DREEM / DCSM | sleep | ✗ | ✅ dedicated portals (open) |
+| MASS | sleep | ✗ | 🟡 application |
+| Bonn / NMT | epilepsy | ✗ | ✅ Univ-Bonn / Zenodo |
+| Helsinki | epilepsy | ✗ | ✅ Zenodo (neonatal sz) |
+| **TUSZ / TUAB** | epilepsy | ✗ | Temple ISIP (open, no-auth pull) — **TUSZ done; TUAB=TUEG staged** |
+| Siena | epilepsy (pretrain) | ✗ | ✅ PhysioNet |
+| PhysioNet-2026 | brain-age | ✗ | ✅ PhysioNet |
+
+**Count on OpenNeuro specifically: ~2–3** (PhysioNet-MI `ds004362` ✅ ours, SeizeIT2
+`ds005873`, likely SeizeIT1). **Count openly obtainable overall: ~35+** of the 42 (the
+rest via PhysioNet/Zenodo/OSF/Temple; only MASS + DREAMER need an application). MOABB
+already auto-pulls their whole BCI arm. So the real "download list" to add for a full
+head-to-head is small: SeizeIT2 (OpenNeuro), the non-Temple epilepsy sets (Bonn/NMT/
+Helsinki/Siena via Zenodo/PhysioNet), and the sleep cohorts (PhysioNet/portals).
+
 ### What we add that NeuroAtlas lacks
 
 | Axis | Ours | Theirs |
