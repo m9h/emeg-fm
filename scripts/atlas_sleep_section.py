@@ -169,8 +169,9 @@ def _fit_probe(Xtr, ytr, model, erase_patient=None):
         clf, _ = es.train_gbm(Xs, ytr)
     else:
         from sklearn.linear_model import LogisticRegression
-        clf = LogisticRegression(max_iter=2000, class_weight="balanced",
-                                 multi_class="multinomial").fit(Xs, ytr)
+        # multi_class= removed in recent sklearn (>=1.5) -- multinomial handling
+        # for multiclass is automatic now with the default lbfgs solver.
+        clf = LogisticRegression(max_iter=2000, class_weight="balanced").fit(Xs, ytr)
     return clf, sc, er
 
 
