@@ -204,9 +204,13 @@ def event_sens_at_fa_auc(curve, fa_lo=0.1, fa_hi=100.0, fa_key="fa_per_h"):
     fa, sens = fa[order], sens[order]
     sens = np.maximum.accumulate(sens)          # best sensitivity at <= this FA
     grid = np.logspace(np.log10(fa_lo), np.log10(fa_hi), 200)
-    # left=0: FA below the achievable minimum is unreachable -> 0 usable sensitivity.
-    # right=sens[-1]: extra FA budget beyond the loosest point can't lower sensitivity.
-    s = np.interp(np.log10(grid), np.log10(fa), sens, left=0.0, right=sens[-1])
+    # STEP interpolation (right-continuous), NOT linear: sensitivity at a FA budget g
+    # is the best sensitivity ACHIEVABLE at some operating point with fa' <= g, else 0.
+    # Linear np.interp would draw a line across empty FA gaps and FABRICATE sensitivity
+    # where no operating point exists (e.g. a bimodal degenerate probe whose points are
+    # only at fa~0/sens0 and fa~250/sens1 -> linear interp invents ~0.5 at fa=10).
+    idx = np.searchsorted(fa, grid, side="right") - 1
+    s = np.where(idx >= 0, sens[np.clip(idx, 0, len(sens) - 1)], 0.0)
     return float((np.trapezoid if hasattr(np,"trapezoid") else np.trapz)(s, np.log10(grid)) / (np.log10(fa_hi) - np.log10(fa_lo)))
 
 

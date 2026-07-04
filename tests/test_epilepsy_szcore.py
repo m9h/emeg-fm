@@ -59,6 +59,18 @@ def test_szcore_curve_perfect_beats_allalarm():
     assert auc_perfect > auc_allalarm + 0.3, (auc_perfect, auc_allalarm)
 
 
+def test_bimodal_degenerate_auc_is_zero():
+    # A collapsed probe whose curve has ONLY (fa~0, sens0) and (fa~big, sens1) points
+    # and nothing between — the REVE identity-free failure mode. The Event-Sens@FA AUC
+    # must be ~0 (no operating point achieves usable sensitivity at a clinical FA budget),
+    # NOT the ~0.5 that linear interpolation across the empty gap would fabricate.
+    curve = {"fa_per_day": np.array([0.0, 0.0, 300.0, 300.0]),
+             "sensitivity": np.array([0.0, 0.0, 1.0, 1.0])}
+    auc = es.event_sens_at_fa_auc(curve, 0.1, 10.0, fa_key="fa_per_day")
+    assert auc < 0.05, f"bimodal degenerate should score ~0, got {auc:.3f}"
+    assert es.sensitivity_at_fa_day(curve, 10.0) == 0.0
+
+
 def test_allalarm_fa_per_day_is_huge():
     starts, trues, durs = _synthetic()
     c = es.szcore_curve(_scores(starts, trues, 10.0, "all_alarm"), starts, 10.0, trues, durs)
