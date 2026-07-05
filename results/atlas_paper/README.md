@@ -49,8 +49,9 @@ continuous/event-level clinical detection, not single-trial pooled decode).
 
 The full per-dataset rows behind the summary above are the existing CSVs in
 `emeg-fm/results/moabb_fmscope/`: `tcm_pertrial{,_erp,_ssvep}.csv` (classical control),
-`leaderboard_{leftright,erp,ssvep}{,_pertrial}.csv` (REVE). 59 distinct MOABB datasets
-total across all of these (see `docs/atlas_vs_neuroatlas_coverage.md`).
+`leaderboard_{leftright,erp,ssvep}{,_pertrial}.csv` (REVE). 111 distinct MOABB datasets
+total across all of these (see `docs/atlas_vs_neuroatlas_coverage.md`) — grand total
+120 vs NeuroAtlas's 42, after the coverage-extension sweep completed 2026-07-05.
 
 ## Regenerating
 
