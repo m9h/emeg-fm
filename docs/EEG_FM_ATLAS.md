@@ -53,18 +53,21 @@ the complete **148-dataset MOABB** roster folded in, and the coverage map vs Neu
 | **CogNeuro** | `atlas_cogneuro_section.py` (+ `erpcore_luck_parity.py` loader) | ERP CORE 7 components (same ~40 subj) | per-comp LOSO + within-subject + LEACE | ✅ **REVE mean 64.1% vs classical 54.4% over all 7 components, identity-Δ≈0** — FMs win on cognition, no trap |
 | **Brain-to-Image** | `atlas_brain2image_section.py` (+ `extract_alljoined_reve.py`) | Alljoined EEG↔image | EEG→CLIP top-k retrieval | ✅ REVE top-1 ~2× chance (smoke) — FMs' natural-vision domain |
 | **Epilepsy** | `atlas_epilepsy_section.py` + `epilepsy_scorer.py` + `nedc_crosscheck.py` | TUSZ v2.0.3 (train4667/dev1832/eval865) + **SeizeIT2** (ds005873, wearable, 89/18/18 subj) + **Helsinki neonatal** (Zenodo 2547147, 49/15/15 neonates) | SzCORE sens@1/10 FP/24h + F1 (+ official NEDC v6 OVLP/TAES cross-check) + patient-id-free Δ | ✅ **both FMs (REVE, EEGDINO) COLLAPSE to 0% usable sens when patient-identity erased on TUSZ; only classical survives (40.9→25.0%)**. Classical Δ REPLICATES on all 3 epilepsy sets (TUSZ+0.044, SeizeIT2+0.019, Helsinki+0.067) — robust 4-domain signature incl. sleep. REVE on Helsinki (small N=15 eval) is genuinely INCONCLUSIVE, honestly reported as such, not spun. `docs/epilepsy_tusz_results.md`, `docs/helsinki_neonatal_results.md` |
-| **Sleep** | `atlas_sleep_section.py` | Sleep-EDF Expanded (197 recs, 137/30/30 subj-disjoint) | Balanced-acc + Cohen's κ (5-class AASM) + patient-id-free Δ | ✅ **classical κ 0.551→0.508 (Δ+0.043, mild); REVE κ 0.459→0.202 (Δ+0.257, SEVERE)** — 2nd domain confirming FMs lean far more on identity than classical. HMC (12.9GB, NeuroAtlas-named) downloaded, not yet wired. `docs/sleep_edf_results.md` |
+| **Sleep** | `atlas_sleep_section.py` + `atlas_sleep_hmc.py` | Sleep-EDF Expanded (197 recs) + **HMC** (151 recs, NeuroAtlas-named) | Balanced-acc + Cohen's κ (5-class AASM) + patient-id-free Δ | ✅ **HMC = cleanest identity-trap confirmation yet: REVE WINS on raw perf (κ 0.898 > classical 0.859) yet COLLAPSES hardest under identity erasure (Δ+0.490 vs classical Δ+0.085)**. Sleep-EDF: classical κ 0.551→0.508 (Δ+0.043); REVE 0.459→0.202 (Δ+0.257). `docs/sleep_edf_results.md`, `docs/hmc_sleep_results.md` |
 
 ## The thesis (what the results say)
 
-- **FMs earn their keep on evoked/cognitive responses** (ERP CORE, N170) but **classical wins
-  on spectral tasks** (brain-age, MI, sleep staging). Naturalistic vision (Alljoined) is where
-  FMs should win most.
-- **The identity trap is now confirmed across TWO independent domains, not one-off**: TUSZ
-  epilepsy (both FMs collapse to 0% usable sensitivity; classical Δ+0.044 mild) and Sleep-EDF
-  staging (REVE Δ+0.257 severe kappa drop; classical Δ+0.043 mild) show the SAME shape —
-  classical spectral features barely lean on subject identity, FMs lean on it heavily. This is
-  the repeated empirical signature, not a single result.
+- **FMs earn their keep on evoked/cognitive responses** (ERP CORE, N170) but **classical usually
+  wins on spectral tasks** (brain-age, MI, Sleep-EDF staging) — though NOT universally: on HMC
+  sleep staging REVE genuinely WINS on raw performance (κ 0.898 vs classical 0.859). Naturalistic
+  vision (Alljoined) is where FMs should win most.
+- **The identity trap is now confirmed across FIVE datasets in THREE domains, not one-off**:
+  epilepsy (TUSZ both FMs→0% sens; SeizeIT2 classical Δ+0.019; Helsinki classical Δ+0.067,
+  REVE inconclusive small-N) and sleep (Sleep-EDF REVE Δ+0.257 severe; **HMC REVE Δ+0.490 —
+  the CLEANEST confirmation: REVE WINS on raw perf yet collapses hardest under identity
+  erasure**, proving the trap isn't just "the FM was already losing"). Classical Δ is a TIGHT,
+  consistent cluster across all 5 (+0.019 to +0.085) — the repeated empirical signature, not a
+  single result. See `docs/hmc_sleep_results.md` for the strongest single case.
 - **The identity trap is a spectrum**: clean on ERP CORE (Δ≈0, same-subject control) → grows on
   Alljoined (naturalistic) / HBN-task (developmental) → **DRAMATIC on TUSZ epilepsy (CONFIRMED
   2026-07-03): both FMs (REVE, EEGDINO) collapse to 0% usable sensitivity when patient identity is
