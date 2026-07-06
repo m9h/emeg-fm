@@ -86,6 +86,24 @@ def test_p3_aud_label_fn_oddball_vs_standard_only():
     assert label_fn({"value": "ignore"}) is None
 
 
+def test_p3_vis_label_fn_target_vs_nontarget():
+    def label_fn(row):
+        s = str(row.get("value", "")).strip()
+        if s.startswith("S"):
+            s = s[1:].strip()
+        if len(s) != 2 or not s.isdigit():
+            return None
+        return 1 if s[0] == s[1] else 0
+
+    assert label_fn({"value": "S 11"}) == 1   # block target A, stimulus A -> target
+    assert label_fn({"value": "S22"}) == 1
+    assert label_fn({"value": "S 21"}) == 0   # block target B, stimulus A -> non-target
+    assert label_fn({"value": "S 25"}) == 0
+    assert label_fn({"value": "S201"}) is None  # 3-digit response code
+    assert label_fn({"value": "S202"}) is None
+    assert label_fn({"value": "boundary"}) is None
+
+
 def test_ern_label_fn_err_vs_cor_only():
     df = pd.DataFrame({
         "trial_type": ["boundary", "con", "err", "inc", "cor", "err"],

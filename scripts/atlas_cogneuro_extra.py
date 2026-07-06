@@ -239,8 +239,56 @@ def load_p3_aud_ds003061(fmax=45.0, sfreq_out=200.0, max_subjects=None):
             np.asarray(all_subj), ch_names, reve_ch_names)
 
 
+def load_p3_vis_ds006018(fmax=45.0, sfreq_out=200.0, max_subjects=None):
+    """Active visual oddball P3b (task-visualoddball, direct ERP CORE protocol
+    reuse per the dataset's own README/OSF citation): rare target vs frequent
+    non-target. Event code is 2 digits (e.g. 'S 11', 'S201' for responses);
+    first digit = block-designated target letter, second digit = stimulus
+    letter shown -- target trial iff they match. 127-subject BrainVision
+    32ch actiCap cohort, NO channels.tsv/electrodes.tsv provided (parsed
+    straight from the .vhdr); excludes 2 mastoid re-reference + 3 EOG
+    channels by name. Remaining channels are standard 10-20 labels, directly
+    usable as REVE names (as ds003061 -- no position remapping needed)."""
+    import mne
+    mne.set_log_level("error")
+    non_scalp = {"HEL", "HER", "VER", "LM", "RM"}
+    subs = sorted(glob.glob(os.path.join(ROOT, "ds006018", "sub-*")))
+    if max_subjects:
+        subs = subs[:max_subjects]
+    all_X, all_y, all_subj, ch_names, reve_ch_names = [], [], [], None, None
+    for sd in subs:
+        subj = os.path.basename(sd)
+        eeg_dir = os.path.join(sd, "eeg")
+        vhdrs = glob.glob(os.path.join(eeg_dir, "*task-visualoddball_eeg.vhdr"))
+        evs = glob.glob(os.path.join(eeg_dir, "*task-visualoddball_events.tsv"))
+        if not (vhdrs and evs):
+            continue
+        raw = mne.io.read_raw_brainvision(vhdrs[0], preload=False, verbose="error")
+        eeg_chs = [c for c in raw.ch_names if c not in non_scalp]
+        events_df = pd.read_csv(evs[0], sep="\t")
+        events_df["onset"] = events_df["onset"].astype(float)
+
+        def label_fn(row):
+            s = str(row.get("value", "")).strip()
+            if s.startswith("S"):
+                s = s[1:].strip()
+            if len(s) != 2 or not s.isdigit():
+                return None
+            return 1 if s[0] == s[1] else 0
+
+        X, y = _epoch_one(raw, events_df, label_fn, -0.2, 0.8, fmax, sfreq_out, eeg_chs)
+        if X is None:
+            continue
+        all_X.append(X); all_y.append(y); all_subj.extend([subj] * len(y))
+        if ch_names is None:
+            ch_names = eeg_chs
+            reve_ch_names = eeg_chs
+    return (np.concatenate(all_X), np.concatenate(all_y),
+            np.asarray(all_subj), ch_names, reve_ch_names)
+
+
 DATASETS = {"n170": load_n170_ds002718, "ern": load_ern_ds004883,
-            "p3_aud": load_p3_aud_ds003061}
+            "p3_aud": load_p3_aud_ds003061, "p3_vis": load_p3_vis_ds006018}
 
 
 def main():
