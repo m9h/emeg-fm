@@ -147,7 +147,51 @@ def load_n170_ds002718(fmax=45.0, sfreq_out=200.0, max_subjects=None):
             np.asarray(all_subj), ch_names, reve_ch_names)
 
 
-DATASETS = {"n170": load_n170_ds002718}
+def load_ern_ds004883(fmax=45.0, sfreq_out=200.0, max_subjects=None, session="ses-1"):
+    """Error (err) vs correct (cor) response-locked trials -- canonical ERN
+    contrast. 172-subject 2-site flanker registered report -- much larger than
+    ERP CORE's shared N=40. Only `session` used per subject (task name varies
+    by counterbalance order: ffa/ffb/ffc) to keep one recording/subject, like
+    the other loaders here; the dataset's other 2 sessions/subject are
+    available for a future within-subject task-generalization extension."""
+    import mne
+    mne.set_log_level("error")
+    subs = sorted(glob.glob(os.path.join(ROOT, "ds004883", "sub-*")))
+    if max_subjects:
+        subs = subs[:max_subjects]
+    all_X, all_y, all_subj, ch_names, reve_ch_names = [], [], [], None, None
+    for sd in subs:
+        subj = os.path.basename(sd)
+        eeg_dir = os.path.join(sd, session, "eeg")
+        sets = glob.glob(os.path.join(eeg_dir, "*_eeg.set"))
+        evs = glob.glob(os.path.join(eeg_dir, "*_events.tsv"))
+        chs = glob.glob(os.path.join(eeg_dir, "*_channels.tsv"))
+        if not (sets and evs and chs):
+            continue
+        eeg_chs = _eeg_channel_names(chs[0])
+        raw = mne.io.read_raw_eeglab(sets[0], preload=False, verbose="error")
+        events_df = pd.read_csv(evs[0], sep="\t")
+        events_df = events_df[events_df["trial_type"].isin(["err", "cor"])].copy()
+        events_df["onset"] = events_df["onset"].astype(float)
+
+        def label_fn(row):
+            return 1 if row["trial_type"] == "err" else 0
+
+        # response-locked: -0.4 to 0.8 s around the response event itself
+        X, y = _epoch_one(raw, events_df, label_fn, -0.4, 0.8, fmax, sfreq_out, eeg_chs)
+        if X is None:
+            continue
+        all_X.append(X); all_y.append(y); all_subj.extend([subj] * len(y))
+        if ch_names is None:
+            ch_names = eeg_chs
+            elec_tsv = glob.glob(os.path.join(eeg_dir, "*_electrodes.tsv"))
+            reve_ch_names = (_reve_names_from_electrode_positions(elec_tsv[0], eeg_chs)
+                             if elec_tsv else eeg_chs)
+    return (np.concatenate(all_X), np.concatenate(all_y),
+            np.asarray(all_subj), ch_names, reve_ch_names)
+
+
+DATASETS = {"n170": load_n170_ds002718, "ern": load_ern_ds004883}
 
 
 def main():

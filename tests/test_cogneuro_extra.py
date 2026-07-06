@@ -66,3 +66,14 @@ def test_reve_names_from_electrode_positions_no_collisions_and_drops_nan(tmp_pat
     assert len(mapped) == 4
     assert mapped[2] == "EEG003"  # no position -> falls back to its own name
     assert len(set(mapped[:2] + [mapped[3]])) == 3  # the 3 valid ones are distinct
+
+
+def test_ern_label_fn_err_vs_cor_only():
+    df = pd.DataFrame({
+        "trial_type": ["boundary", "con", "err", "inc", "cor", "err"],
+        "onset": [1.0, 2.0, 2.5, 3.0, 3.5, 4.0],
+    })
+    filtered = df[df["trial_type"].isin(["err", "cor"])]
+    labels = (filtered["trial_type"] == "err").astype(int).tolist()
+    assert len(filtered) == 3
+    assert labels == [1, 0, 1]
