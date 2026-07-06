@@ -67,3 +67,9 @@ epilepsy,Helsinki_neonatal,15,recordings,classical,normal,sens_at_1_FPday,0.085,
 epilepsy,Helsinki_neonatal,15,recordings,classical,identity_free,sens_at_1_FPday,0.024,docs/helsinki_neonatal_results.md
 epilepsy,Helsinki_neonatal,15,recordings,REVE,normal,sens_at_1_FPday,0.000,docs/helsinki_neonatal_results.md
 epilepsy,Helsinki_neonatal,15,recordings,REVE,identity_free,sens_at_1_FPday,0.085,docs/helsinki_neonatal_results.md
+cogneuro,ERN_ds004883,162,subjects_LOSO,classical,normal,LOSO_BA,0.576,docs/nemar_cogneuro_extras_results.md
+cogneuro,ERN_ds004883,162,subjects_LOSO,classical,identity_free,LOSO_BA,0.590,docs/nemar_cogneuro_extras_results.md
+cogneuro,ERN_ds004883,162,subjects_LOSO,REVE,normal,LOSO_BA,0.694,docs/nemar_cogneuro_extras_results.md
+cogneuro,ERN_ds004883,162,subjects_LOSO,REVE,identity_free,LOSO_BA,0.624,docs/nemar_cogneuro_extras_results.md
+cogneuro,N170_ds002718,18,subjects_LOSO,REVE,normal,LOSO_BA,0.603,docs/nemar_cogneuro_extras_results.md
+cogneuro,N170_ds002718,18,subjects_LOSO,REVE,identity_free,LOSO_BA,0.601,docs/nemar_cogneuro_extras_results.md
