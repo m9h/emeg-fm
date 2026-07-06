@@ -73,3 +73,11 @@ cogneuro,ERN_ds004883,162,subjects_LOSO,REVE,normal,LOSO_BA,0.694,docs/nemar_cog
 cogneuro,ERN_ds004883,162,subjects_LOSO,REVE,identity_free,LOSO_BA,0.624,docs/nemar_cogneuro_extras_results.md
 cogneuro,N170_ds002718,18,subjects_LOSO,REVE,normal,LOSO_BA,0.603,docs/nemar_cogneuro_extras_results.md
 cogneuro,N170_ds002718,18,subjects_LOSO,REVE,identity_free,LOSO_BA,0.601,docs/nemar_cogneuro_extras_results.md
+cogneuro,P3aud_ds003061,13,subjects_LOSO,classical,normal,LOSO_BA,0.611,docs/nemar_cogneuro_extras_results.md
+cogneuro,P3aud_ds003061,13,subjects_LOSO,classical,identity_free,LOSO_BA,0.627,docs/nemar_cogneuro_extras_results.md
+cogneuro,P3aud_ds003061,13,subjects_LOSO,REVE,normal,LOSO_BA,0.714,docs/nemar_cogneuro_extras_results.md
+cogneuro,P3aud_ds003061,13,subjects_LOSO,REVE,identity_free,LOSO_BA,0.716,docs/nemar_cogneuro_extras_results.md
+cogneuro,P3vis_ds006018,98,subjects_LOSO,classical,normal,LOSO_BA,0.592,docs/nemar_cogneuro_extras_results.md
+cogneuro,P3vis_ds006018,98,subjects_LOSO,classical,identity_free,LOSO_BA,0.503,docs/nemar_cogneuro_extras_results.md
+cogneuro,P3vis_ds006018,98,subjects_LOSO,REVE,normal,LOSO_BA,0.680,docs/nemar_cogneuro_extras_results.md
+cogneuro,P3vis_ds006018,98,subjects_LOSO,REVE,identity_free,LOSO_BA,0.631,docs/nemar_cogneuro_extras_results.md
