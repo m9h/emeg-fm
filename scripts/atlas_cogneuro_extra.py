@@ -37,6 +37,42 @@ def _eeg_channel_names(channels_tsv):
     return df[df["type"] == "EEG"]["name"].tolist()
 
 
+_STD1005_CACHE = None
+
+
+def _reve_names_from_electrode_positions(electrodes_tsv, eeg_ch_names):
+    """Map ds002718's generic channel names ('EEG001'...) to real standard_1005
+    electrode names via nearest-neighbor 3D position matching, for REVE's
+    name-based lookup. electrodes.tsv gives REAL 3D positions (unlike the
+    bipolar-derivation datasets) but in an uncalibrated unit/origin -- both
+    point sets are rescaled to unit RMS radius before matching (a documented
+    approximation: mean residual ~0.19 in normalized-radius units on the
+    sample checked, not exact registration). Per-subject file (positions can
+    differ slightly/have missing electrodes across subjects -- NaN rows dropped)."""
+    global _STD1005_CACHE
+    import mne
+    if _STD1005_CACHE is None:
+        mont = mne.channels.make_standard_montage("standard_1005")
+        cpos = mont.get_positions()["ch_pos"]
+        names = list(cpos.keys())
+        cxyz = np.stack([cpos[n] for n in names])
+        _STD1005_CACHE = (names, cxyz, np.sqrt((cxyz**2).sum(axis=1)).mean())
+    names, cxyz, crms = _STD1005_CACHE
+
+    df = pd.read_csv(electrodes_tsv, sep="\t")
+    df = df[df["name"].isin(eeg_ch_names)].dropna(subset=["x", "y", "z"]).reset_index(drop=True)
+    pos = df[["x", "y", "z"]].to_numpy()
+    rms = np.sqrt((pos**2).sum(axis=1)).mean()
+    pos_n, cxyz_n = pos / rms, cxyz / crms
+    mapping = {}
+    for i, row in df.iterrows():
+        d = np.linalg.norm(cxyz_n - pos_n[i], axis=1)
+        mapping[row["name"]] = names[int(np.argmin(d))]
+    # channels with no valid position (dropped above) fall back to their own
+    # generic name (embed_reve will simply not find a position for them).
+    return [mapping.get(c, c) for c in eeg_ch_names]
+
+
 def _epoch_one(raw, events_df, label_fn, tmin, tmax, fmax, sfreq_out, eeg_chs):
     """Shared epoching: pick EEG chs, filter, epoch per event, resample.
     events_df must have an 'onset' column (seconds) and whatever columns
@@ -75,7 +111,7 @@ def load_n170_ds002718(fmax=45.0, sfreq_out=200.0, max_subjects=None):
     subs = sorted(glob.glob(os.path.join(ROOT, "ds002718", "sub-*")))
     if max_subjects:
         subs = subs[:max_subjects]
-    all_X, all_y, all_subj, ch_names = [], [], [], None
+    all_X, all_y, all_subj, ch_names, reve_ch_names = [], [], [], None, None
     for sd in subs:
         subj = os.path.basename(sd)
         eeg_dir = os.path.join(sd, "eeg")
@@ -102,9 +138,13 @@ def load_n170_ds002718(fmax=45.0, sfreq_out=200.0, max_subjects=None):
         if X is None:
             continue
         all_X.append(X); all_y.append(y); all_subj.extend([subj] * len(y))
-        ch_names = eeg_chs
+        if ch_names is None:
+            ch_names = eeg_chs
+            elec_tsv = glob.glob(os.path.join(eeg_dir, "*_electrodes.tsv"))
+            reve_ch_names = (_reve_names_from_electrode_positions(elec_tsv[0], eeg_chs)
+                             if elec_tsv else eeg_chs)
     return (np.concatenate(all_X), np.concatenate(all_y),
-            np.asarray(all_subj), ch_names)
+            np.asarray(all_subj), ch_names, reve_ch_names)
 
 
 DATASETS = {"n170": load_n170_ds002718}
@@ -124,11 +164,15 @@ def main():
     dev = "cuda" if torch.cuda.is_available() else "cpu"
 
     print(f"[cogneuro-extra] dataset={a.dataset} model={a.model}", flush=True)
-    X, y, subj, ch_names = DATASETS[a.dataset](a.fmax, a.sfreq, a.max_subjects)
+    X, y, subj, ch_names, reve_ch_names = DATASETS[a.dataset](a.fmax, a.sfreq, a.max_subjects)
     n_subj = len(set(subj.tolist()))
     print(f"  {len(y)} trials, {n_subj} subjects, d_in={X.shape[1]}ch x {X.shape[2]}samp", flush=True)
 
-    emb = extract(a.model, X, ch_names, a.sfreq, dev)
+    # REVE needs real electrode names (nearest-neighbor mapped from generic
+    # 'EEGnnn' labels via 3D position matching); classical/braindecode use the
+    # raw channel identity (doesn't matter for band-power features).
+    names_for_model = reve_ch_names if a.model == "reve" else ch_names
+    emb = extract(a.model, X, names_for_model, a.sfreq, dev)
     nc = len(set(y.tolist()))
     losoc = loso(emb, y, subj, nc, erase_identity=False)
     idf = loso(emb, y, subj, nc, erase_identity=True)
