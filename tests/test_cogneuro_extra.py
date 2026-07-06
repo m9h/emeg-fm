@@ -68,6 +68,24 @@ def test_reve_names_from_electrode_positions_no_collisions_and_drops_nan(tmp_pat
     assert len(set(mapped[:2] + [mapped[3]])) == 3  # the 3 valid ones are distinct
 
 
+def test_p3_aud_label_fn_oddball_vs_standard_only():
+    def label_fn(row):
+        v = row.get("value")
+        if v in ("oddball", "oddball_with_reponse"):
+            return 1
+        if v in ("standard", "standard_with_reponse"):
+            return 0
+        return None
+
+    assert label_fn({"value": "oddball"}) == 1
+    assert label_fn({"value": "oddball_with_reponse"}) == 1
+    assert label_fn({"value": "standard"}) == 0
+    assert label_fn({"value": "standard_with_reponse"}) == 0
+    assert label_fn({"value": "noise"}) is None
+    assert label_fn({"value": "noise_with_reponse"}) is None
+    assert label_fn({"value": "ignore"}) is None
+
+
 def test_ern_label_fn_err_vs_cor_only():
     df = pd.DataFrame({
         "trial_type": ["boundary", "con", "err", "inc", "cor", "err"],

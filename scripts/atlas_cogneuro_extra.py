@@ -191,7 +191,56 @@ def load_ern_ds004883(fmax=45.0, sfreq_out=200.0, max_subjects=None, session="se
             np.asarray(all_subj), ch_names, reve_ch_names)
 
 
-DATASETS = {"n170": load_n170_ds002718, "ern": load_ern_ds004883}
+def load_p3_aud_ds003061(fmax=45.0, sfreq_out=200.0, max_subjects=None):
+    """Auditory oddball P300: target (oddball, incl. with-response variant) vs
+    standard non-target tone. 13-subject BioSemi 64ch cohort with REAL 10-20
+    channel names (Fp1/AF7/...) already matching standard_1005 -- no
+    electrode-position remapping needed for REVE, unlike ds002718/ds004883's
+    generic 'EEGnnn' labels. Each subject has 3 runs of the same task;
+    concatenated across runs to maximize N (unlike ERN's ses-1-only choice,
+    there's no counterbalance confound here -- same task repeated 3x)."""
+    import mne
+    mne.set_log_level("error")
+    subs = sorted(glob.glob(os.path.join(ROOT, "ds003061", "sub-*")))
+    if max_subjects:
+        subs = subs[:max_subjects]
+    all_X, all_y, all_subj, ch_names, reve_ch_names = [], [], [], None, None
+    for sd in subs:
+        subj = os.path.basename(sd)
+        eeg_dir = os.path.join(sd, "eeg")
+        runs = sorted(glob.glob(os.path.join(eeg_dir, "*_run-*_eeg.set")))
+        for set_path in runs:
+            prefix = set_path[:-len("_eeg.set")]
+            ev_path, ch_path = prefix + "_events.tsv", prefix + "_channels.tsv"
+            if not (os.path.exists(ev_path) and os.path.exists(ch_path)):
+                continue
+            eeg_chs = _eeg_channel_names(ch_path)
+            raw = mne.io.read_raw_eeglab(set_path, preload=False, verbose="error")
+            events_df = pd.read_csv(ev_path, sep="\t")
+            events_df = events_df[events_df["trial_type"] == "stimulus"].copy()
+            events_df["onset"] = events_df["onset"].astype(float)
+
+            def label_fn(row):
+                v = row.get("value")
+                if v in ("oddball", "oddball_with_reponse"):
+                    return 1
+                if v in ("standard", "standard_with_reponse"):
+                    return 0
+                return None
+
+            X, y = _epoch_one(raw, events_df, label_fn, -0.2, 0.8, fmax, sfreq_out, eeg_chs)
+            if X is None:
+                continue
+            all_X.append(X); all_y.append(y); all_subj.extend([subj] * len(y))
+            if ch_names is None:
+                ch_names = eeg_chs
+                reve_ch_names = eeg_chs  # already real standard_1005 names
+    return (np.concatenate(all_X), np.concatenate(all_y),
+            np.asarray(all_subj), ch_names, reve_ch_names)
+
+
+DATASETS = {"n170": load_n170_ds002718, "ern": load_ern_ds004883,
+            "p3_aud": load_p3_aud_ds003061}
 
 
 def main():
