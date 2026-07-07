@@ -2,19 +2,20 @@
 
 *Tracking whether our combined open-data EEG-FM benchmarking work has processed
 more distinct datasets, with real persisted results, than NeuroAtlas's 42
-(arXiv:2605.14698). Checked 2026-07-04, FINAL update 2026-07-05 after the TCM
-coverage-extension sweep completed all three paradigms.*
+(arXiv:2605.14698). Checked 2026-07-04, updated 2026-07-05 after the TCM
+coverage-extension sweep completed all three paradigms, updated again
+2026-07-06 after the NEMAR CogNeuro-extras + M3CV wave.*
 
-## The tally (final)
+## The tally (current)
 
 | Source | Distinct datasets (real results) | Evidence |
 |---|---|---|
 | **MOABB identity-free leaderboard** (union: MI pooled+per-trial, TCM MI/ERP/SSVEP, REVE ERP/SSVEP pooled+per-trial) | **111** | `results/moabb_fmscope/{leaderboard_leftright*,tcm_pertrial*,leaderboard_erp*,leaderboard_ssvep*}.csv` |
-| **NeuroTechX Atlas** (non-MOABB): TDBRAIN, LEMON, HBN, Alljoined, TUSZ, SeizeIT2, Helsinki, Sleep-EDF, HMC | **9** | this session + `~/dev/meeg-brain-age-benchmark-paper` |
-| **Total distinct datasets processed** | **120** | |
+| **NeuroTechX Atlas** (non-MOABB): TDBRAIN, LEMON, HBN, Alljoined, TUSZ, SeizeIT2, Helsinki, Sleep-EDF, HMC, N170 (ds002718), ERN (ds004883), P3-aud (ds003061), P3-vis (ds006018), M3CV | **14** | this session + `~/dev/meeg-brain-age-benchmark-paper` |
+| **Total distinct datasets processed** | **125** | |
 | **NeuroAtlas** | 42 | arXiv:2605.14698 |
 
-**We exceed NeuroAtlas's dataset count by 78 (120 vs 42, ~2.9×).**
+**We exceed NeuroAtlas's dataset count by 83 (125 vs 42, ~3.0×).**
 
 Per-paradigm breakdown of the final MOABB coverage-extension sweep
 (`scripts/moabb_tcm_pertrial.py`, full registry per paradigm):
@@ -55,8 +56,30 @@ epilepsy dataset), HMC sleep (2nd sleep dataset) — both wired, tested, and run
 (classical + REVE, normal + identity-free). See `docs/helsinki_neonatal_results.md`,
 `docs/hmc_sleep_results.md`.
 
-Still not wired: 4 candidate NEMAR CogNeuro datasets (ds002718, ds004883,
-ds003061, ds006018 — found, not yet integrated into the CogNeuro section).
+Wired since (2026-07-06): all 4 candidate NEMAR CogNeuro datasets (N170
+ds002718, ERN ds004883, P3-aud ds003061, P3-vis ds006018) + M3CV (95-subj
+biometric-competition cohort, 13-condition decode with subject-identity as
+the erased nuisance axis — see `scripts/atlas_m3cv_identity.py` module
+docstring for why this framing is non-circular, unlike naively decoding
+identity itself).
+
+## Remaining gaps vs NeuroAtlas's 42 (what's still worth staging)
+
+Per the domain cross-check in `docs/atlas_datasets.md` §C, our shortfall is
+concentrated in two places, not spread evenly:
+
+- **Non-Temple epilepsy**: Bonn, NMT, SeizeIT1, Siena — all openly obtainable
+  (Zenodo/PhysioNet/KU Leuven RDR), none staged yet. (Helsinki + SeizeIT2 +
+  TUSZ already done — 3 of 7 NeuroAtlas epilepsy sets covered.)
+- **Sleep cohorts**: ISRUC-Sleep, DREEM, MASS, DCSM — Sleep-EDF + HMC already
+  done (2 of ~7 named NeuroAtlas sleep sets); MASS needs an application,
+  the rest are open.
+- **DREAMER** (emotion/affect) — the one NeuroAtlas BCI-arm dataset not in
+  MOABB and not staged; needs a Zenodo application.
+
+None of these are required to keep the dataset-count lead (125 vs 42 already
+~3×) — they matter for closing the *domain-breadth* gap (epilepsy/sleep
+depth), not the raw count.
 
 ## Caveat
 
