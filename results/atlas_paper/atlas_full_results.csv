@@ -81,3 +81,5 @@ cogneuro,P3vis_ds006018,98,subjects_LOSO,classical,normal,LOSO_BA,0.592,docs/nem
 cogneuro,P3vis_ds006018,98,subjects_LOSO,classical,identity_free,LOSO_BA,0.503,docs/nemar_cogneuro_extras_results.md
 cogneuro,P3vis_ds006018,98,subjects_LOSO,REVE,normal,LOSO_BA,0.680,docs/nemar_cogneuro_extras_results.md
 cogneuro,P3vis_ds006018,98,subjects_LOSO,REVE,identity_free,LOSO_BA,0.631,docs/nemar_cogneuro_extras_results.md
+cogneuro,M3CV_condition,95,subjects_LOSO,classical,normal,LOSO_BA,0.593,docs/nemar_cogneuro_extras_results.md
+cogneuro,M3CV_condition,95,subjects_LOSO,classical,identity_free,LOSO_BA,0.599,docs/nemar_cogneuro_extras_results.md
