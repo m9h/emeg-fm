@@ -17,6 +17,14 @@ coverage-extension sweep completed all three paradigms, updated again
 
 **We exceed NeuroAtlas's dataset count by 83 (125 vs 42, ~3.0×).**
 
+**Caveat — this is a dataset-COUNT metric, not a data-VOLUME metric.** On total processed
+hours (the metric behind NeuroAtlas's own "~260k hours" headline), we are far behind, not
+ahead: ≈4,187 hours vs their ≈260,000 (≈1.6%, they exceed us ~62×). See
+`docs/atlas_vs_neuroatlas_data_hours.md` for the full computation and why the two numbers
+point in opposite directions (their volume comes from a few massive clinical
+sleep/epilepsy monitoring cohorts; ours comes from breadth across many shorter, more
+diverse tasks).
+
 Per-paradigm breakdown of the final MOABB coverage-extension sweep
 (`scripts/moabb_tcm_pertrial.py`, full registry per paradigm):
 
