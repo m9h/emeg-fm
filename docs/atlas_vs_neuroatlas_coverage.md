@@ -4,18 +4,19 @@
 more distinct datasets, with real persisted results, than NeuroAtlas's 42
 (arXiv:2605.14698). Checked 2026-07-04, updated 2026-07-05 after the TCM
 coverage-extension sweep completed all three paradigms, updated again
-2026-07-06 after the NEMAR CogNeuro-extras + M3CV wave.*
+2026-07-06 after the NEMAR CogNeuro-extras + M3CV wave, updated again
+2026-07-08 after Dreem DOD-H/DOD-O.*
 
 ## The tally (current)
 
 | Source | Distinct datasets (real results) | Evidence |
 |---|---|---|
 | **MOABB identity-free leaderboard** (union: MI pooled+per-trial, TCM MI/ERP/SSVEP, REVE ERP/SSVEP pooled+per-trial) | **111** | `results/moabb_fmscope/{leaderboard_leftright*,tcm_pertrial*,leaderboard_erp*,leaderboard_ssvep*}.csv` |
-| **NeuroTechX Atlas** (non-MOABB): TDBRAIN, LEMON, HBN, Alljoined, TUSZ, SeizeIT2, Helsinki, Sleep-EDF, HMC, N170 (ds002718), ERN (ds004883), P3-aud (ds003061), P3-vis (ds006018), M3CV | **14** | this session + `~/dev/meeg-brain-age-benchmark-paper` |
-| **Total distinct datasets processed** | **125** | |
+| **NeuroTechX Atlas** (non-MOABB): TDBRAIN, LEMON, HBN, Alljoined, TUSZ, SeizeIT2, Helsinki, Sleep-EDF, HMC, N170 (ds002718), ERN (ds004883), P3-aud (ds003061), P3-vis (ds006018), M3CV, DOD-H, DOD-O | **16** | this session + `~/dev/meeg-brain-age-benchmark-paper` |
+| **Total distinct datasets processed** | **127** | |
 | **NeuroAtlas** | 42 | arXiv:2605.14698 |
 
-**We exceed NeuroAtlas's dataset count by 83 (125 vs 42, ~3.0×).**
+**We exceed NeuroAtlas's dataset count by 85 (127 vs 42, ~3.0×).**
 
 **Caveat — this is a dataset-COUNT metric, not a data-VOLUME metric.** On total processed
 hours (the metric behind NeuroAtlas's own "~260k hours" headline), we are far behind, not
