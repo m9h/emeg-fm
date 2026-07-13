@@ -99,3 +99,11 @@ sleep,DOD_O,56,recordings,REVE,normal,balanced_accuracy,0.690,docs/dreem_dod_sle
 sleep,DOD_O,56,recordings,REVE,normal,cohens_kappa,0.572,docs/dreem_dod_sleep_results.md
 sleep,DOD_O,56,recordings,REVE,identity_free,balanced_accuracy,0.608,docs/dreem_dod_sleep_results.md
 sleep,DOD_O,56,recordings,REVE,identity_free,cohens_kappa,0.472,docs/dreem_dod_sleep_results.md
+sleep,EarEEG,2,recordings,classical,normal,balanced_accuracy,0.642,docs/eareeg_sleep_results.md
+sleep,EarEEG,2,recordings,classical,normal,cohens_kappa,0.495,docs/eareeg_sleep_results.md
+sleep,EarEEG,2,recordings,classical,identity_free,balanced_accuracy,0.547,docs/eareeg_sleep_results.md
+sleep,EarEEG,2,recordings,classical,identity_free,cohens_kappa,0.402,docs/eareeg_sleep_results.md
+sleep,EarEEG,2,recordings,REVE,normal,balanced_accuracy,0.592,docs/eareeg_sleep_results.md
+sleep,EarEEG,2,recordings,REVE,normal,cohens_kappa,0.448,docs/eareeg_sleep_results.md
+sleep,EarEEG,2,recordings,REVE,identity_free,balanced_accuracy,0.597,docs/eareeg_sleep_results.md
+sleep,EarEEG,2,recordings,REVE,identity_free,cohens_kappa,0.434,docs/eareeg_sleep_results.md
