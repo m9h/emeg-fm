@@ -96,17 +96,21 @@ def load_windows(edf, win_s=WIN_S, sfreq_out=100.0):
         raw = mne.io.read_raw_edf(edf, preload=True, verbose="error")
     except Exception:
         return None, None
-    raw.rename_channels({c: c.strip().upper() for c in raw.ch_names})
-    # some files carry duplicate channel names (e.g. repeated T8-P8) -- keep
-    # the first occurrence of each wanted channel
-    present = []
-    seen = set()
-    for c in STD_BIPOLAR:
-        if c in raw.ch_names and c not in seen:
-            present.append(c); seen.add(c)
-    if len(present) < len(STD_BIPOLAR):
+    # some files list a channel twice (e.g. T8-P8 appears at both position 15
+    # and 23 in the header) -- MNE auto-dedups these on load by appending
+    # "-0"/"-1" to BOTH occurrences, so there is no bare "T8-P8" to match on;
+    # strip a trailing "-<digit>" disambiguator before matching against
+    # STD_BIPOLAR, keeping the first (lowest-suffix) occurrence of each name.
+    by_canonical = {}
+    for c in raw.ch_names:
+        canon = re.sub(r"-\d+$", "", c.strip().upper())
+        if canon not in by_canonical:
+            by_canonical[canon] = c
+    present_orig = [by_canonical[c] for c in STD_BIPOLAR if c in by_canonical]
+    if len(present_orig) < len(STD_BIPOLAR):
         return None, None
-    raw.pick(present).reorder_channels(present)
+    raw.pick(present_orig).reorder_channels(present_orig)
+    raw.rename_channels({o: c for o, c in zip(present_orig, STD_BIPOLAR)})
     if raw.info["sfreq"] != sfreq_out:
         raw.resample(sfreq_out, verbose="error")
     x = raw.get_data()
