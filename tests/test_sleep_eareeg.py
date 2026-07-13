@@ -52,6 +52,15 @@ def test_load_epochs_drops_artefact_rows(tmp_path, monkeypatch):
     assert X.shape == (3, 4, int(30 * sfreq))
 
 
+def test_drop_nan_rows_filters_embeddings_and_labels_together():
+    emb = np.array([[1.0, 2.0], [np.nan, 3.0], [4.0, 5.0]])
+    y = np.array([0, 1, 2])
+    emb_clean, y_clean, n_dropped = ee._drop_nan_rows(emb, y)
+    assert n_dropped == 1
+    assert emb_clean.shape == (2, 2)
+    assert list(y_clean) == [0, 2]
+
+
 def test_iter_recordings_only_includes_sessions_with_both_files(tmp_path, monkeypatch):
     monkeypatch.setattr(ee, "ROOT", str(tmp_path))
     d = tmp_path / "sub-001" / "ses-001" / "eeg"

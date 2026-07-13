@@ -103,17 +103,35 @@ def subject_splits(limit=None, seed_frac=(0.7, 0.15, 0.15)):
     return set(subs[:n_tr]), set(subs[n_tr:n_tr + n_dv]), set(subs[n_tr + n_dv:])
 
 
+def _drop_nan_rows(emb, y):
+    """Drop epochs whose embedding contains a NaN (e.g. wearable ear-EEG
+    segments with intermittent electrode dropout/flat-line artifacts that
+    propagate NaN through log-band-power or REVE's channel interpolation).
+    Returns (emb, y, n_dropped)."""
+    keep = ~np.isnan(emb).any(axis=1)
+    return emb[keep], y[keep], int((~keep).sum())
+
+
 def build_split(subjects, limit=None, embed_fn=None):
     recs = []
+    total_dropped, total_n = 0, 0
     for eeg_set, tsv, subj in iter_recordings(limit):
         if subj not in subjects:
             continue
         X, y = load_epochs(eeg_set, tsv)
         if X is None:
             continue
-        rec = dict(y=y, patient=subj)
-        rec["emb"] = embed_fn(X) if embed_fn is not None else None
-        recs.append(rec)
+        emb = embed_fn(X) if embed_fn is not None else None
+        if emb is not None:
+            total_n += len(y)
+            emb, y, n_dropped = _drop_nan_rows(emb, y)
+            total_dropped += n_dropped
+            if len(y) == 0:
+                continue
+        recs.append(dict(y=y, patient=subj, emb=emb))
+    if total_dropped:
+        print(f"  [eareeg] dropped {total_dropped}/{total_n} NaN-embedding epochs "
+              f"({100*total_dropped/total_n:.1f}%)", flush=True)
     return recs
 
 
