@@ -6,18 +6,19 @@ more distinct datasets, with real persisted results, than NeuroAtlas's 42
 coverage-extension sweep completed all three paradigms, updated again
 2026-07-06 after the NEMAR CogNeuro-extras + M3CV wave, updated again
 2026-07-08 after Dreem DOD-H/DOD-O, updated again 2026-07-12 after Ear-EEG
-(ds005178), updated again 2026-07-13 after CHB-MIT.*
+(ds005178), updated again 2026-07-13 after CHB-MIT + Siena (ISRUC loader
+built, results pending its sweep run).*
 
 ## The tally (current)
 
 | Source | Distinct datasets (real results) | Evidence |
 |---|---|---|
 | **MOABB identity-free leaderboard** (union: MI pooled+per-trial, TCM MI/ERP/SSVEP, REVE ERP/SSVEP pooled+per-trial) | **111** | `results/moabb_fmscope/{leaderboard_leftright*,tcm_pertrial*,leaderboard_erp*,leaderboard_ssvep*}.csv` |
-| **NeuroTechX Atlas** (non-MOABB): TDBRAIN, LEMON, HBN, Alljoined, TUSZ, SeizeIT2, Helsinki, Sleep-EDF, HMC, N170 (ds002718), ERN (ds004883), P3-aud (ds003061), P3-vis (ds006018), M3CV, DOD-H, DOD-O, Ear-EEG, CHB-MIT | **18** | this session + `~/dev/meeg-brain-age-benchmark-paper` |
-| **Total distinct datasets processed** | **129** | |
+| **NeuroTechX Atlas** (non-MOABB): TDBRAIN, LEMON, HBN, Alljoined, TUSZ, SeizeIT2, Helsinki, Sleep-EDF, HMC, N170 (ds002718), ERN (ds004883), P3-aud (ds003061), P3-vis (ds006018), M3CV, DOD-H, DOD-O, Ear-EEG, CHB-MIT, Siena | **19** | this session + `~/dev/meeg-brain-age-benchmark-paper` |
+| **Total distinct datasets processed** | **130** | |
 | **NeuroAtlas** | 42 | arXiv:2605.14698 |
 
-**We exceed NeuroAtlas's dataset count by 87 (129 vs 42, ~3.1×).**
+**We exceed NeuroAtlas's dataset count by 88 (130 vs 42, ~3.1×).**
 
 **Caveat — this is a dataset-COUNT metric, not a data-VOLUME metric.** On total processed
 hours (the metric behind NeuroAtlas's own "~260k hours" headline), we are far behind, not
@@ -78,20 +79,22 @@ identity itself).
 Per the domain cross-check in `docs/atlas_datasets.md` §C, our shortfall is
 concentrated in two places, not spread evenly:
 
-- **Non-Temple epilepsy**: Bonn, NMT, Siena — Siena/ISRUC staged to NAS and
-  in progress, loaders pending once staging finishes. SeizeIT1 was
-  investigated and confirmed genuinely unavailable (not a false-negative
-  claim — re-checked on request). **CHB-MIT is now done** (Helsinki +
-  SeizeIT2 + TUSZ + CHB-MIT — 4 of 7 NeuroAtlas epilepsy sets covered).
-- **Sleep cohorts**: ISRUC-Sleep, MASS, DCSM — Sleep-EDF + HMC + Dreem
-  DOD-H/DOD-O already done (4 of ~7 named NeuroAtlas sleep sets); MASS needs
-  an application, ISRUC/DCSM staging is in progress. Ear-EEG (ds005178) is
-  an *additional* sleep dataset beyond NeuroAtlas's named list — a new
-  acquisition-modality axis they don't have at all.
+- **Non-Temple epilepsy**: Bonn, NMT — SeizeIT1 was investigated and confirmed
+  genuinely unavailable (not a false-negative claim — re-checked on
+  request). **CHB-MIT and Siena are now done** (Helsinki + SeizeIT2 + TUSZ +
+  CHB-MIT + Siena — 5 of 7 NeuroAtlas epilepsy sets covered).
+- **Sleep cohorts**: MASS, DCSM — Sleep-EDF + HMC + Dreem DOD-H/DOD-O
+  already done (4 of ~7 named NeuroAtlas sleep sets); MASS needs an
+  application. **ISRUC loader built** (`atlas_sleep_isruc.py`), full sweep
+  running — results pending. DCSM is downloaded (392GB zip) and being
+  selectively extracted (edf+hypnogram only, skipping redundant .h5
+  duplicates). Ear-EEG (ds005178) is an *additional* sleep dataset beyond
+  NeuroAtlas's named list — a new acquisition-modality axis they don't have
+  at all.
 - **DREAMER** (emotion/affect) — the one NeuroAtlas BCI-arm dataset not in
   MOABB and not staged; needs a Zenodo application.
 
-None of these are required to keep the dataset-count lead (129 vs 42 already
+None of these are required to keep the dataset-count lead (130 vs 42 already
 ~3×) — they matter for closing the *domain-breadth* gap (epilepsy/sleep
 depth), not the raw count.
 

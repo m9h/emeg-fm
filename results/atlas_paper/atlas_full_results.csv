@@ -111,3 +111,7 @@ epilepsy,CHBMIT,4,patients,classical,normal,event_sens_auc,0.457,docs/chbmit_epi
 epilepsy,CHBMIT,4,patients,classical,identity_free,event_sens_auc,0.312,docs/chbmit_epilepsy_results.md
 epilepsy,CHBMIT,4,patients,REVE,normal,event_sens_auc,0.014,docs/chbmit_epilepsy_results.md
 epilepsy,CHBMIT,4,patients,REVE,identity_free,event_sens_auc,0.093,docs/chbmit_epilepsy_results.md
+epilepsy,Siena,2,patients,classical,normal,event_sens_auc,0.790,docs/siena_epilepsy_results.md
+epilepsy,Siena,2,patients,classical,identity_free,event_sens_auc,1.000,docs/siena_epilepsy_results.md
+epilepsy,Siena,2,patients,REVE,normal,event_sens_auc,0.000,docs/siena_epilepsy_results.md
+epilepsy,Siena,2,patients,REVE,identity_free,event_sens_auc,0.000,docs/siena_epilepsy_results.md
