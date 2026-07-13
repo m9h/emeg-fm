@@ -107,3 +107,7 @@ sleep,EarEEG,2,recordings,REVE,normal,balanced_accuracy,0.592,docs/eareeg_sleep_
 sleep,EarEEG,2,recordings,REVE,normal,cohens_kappa,0.448,docs/eareeg_sleep_results.md
 sleep,EarEEG,2,recordings,REVE,identity_free,balanced_accuracy,0.597,docs/eareeg_sleep_results.md
 sleep,EarEEG,2,recordings,REVE,identity_free,cohens_kappa,0.434,docs/eareeg_sleep_results.md
+epilepsy,CHBMIT,4,patients,classical,normal,event_sens_auc,0.457,docs/chbmit_epilepsy_results.md
+epilepsy,CHBMIT,4,patients,classical,identity_free,event_sens_auc,0.312,docs/chbmit_epilepsy_results.md
+epilepsy,CHBMIT,4,patients,REVE,normal,event_sens_auc,0.014,docs/chbmit_epilepsy_results.md
+epilepsy,CHBMIT,4,patients,REVE,identity_free,event_sens_auc,0.093,docs/chbmit_epilepsy_results.md
