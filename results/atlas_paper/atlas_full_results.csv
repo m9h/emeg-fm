@@ -115,3 +115,11 @@ epilepsy,Siena,2,patients,classical,normal,event_sens_auc,0.790,docs/siena_epile
 epilepsy,Siena,2,patients,classical,identity_free,event_sens_auc,1.000,docs/siena_epilepsy_results.md
 epilepsy,Siena,2,patients,REVE,normal,event_sens_auc,0.000,docs/siena_epilepsy_results.md
 epilepsy,Siena,2,patients,REVE,identity_free,event_sens_auc,0.000,docs/siena_epilepsy_results.md
+sleep,ISRUC,17,subjects,classical,normal,balanced_accuracy,0.664,docs/isruc_sleep_results.md
+sleep,ISRUC,17,subjects,classical,normal,cohens_kappa,0.618,docs/isruc_sleep_results.md
+sleep,ISRUC,17,subjects,classical,identity_free,balanced_accuracy,0.626,docs/isruc_sleep_results.md
+sleep,ISRUC,17,subjects,classical,identity_free,cohens_kappa,0.553,docs/isruc_sleep_results.md
+sleep,ISRUC,17,subjects,REVE,normal,balanced_accuracy,0.697,docs/isruc_sleep_results.md
+sleep,ISRUC,17,subjects,REVE,normal,cohens_kappa,0.637,docs/isruc_sleep_results.md
+sleep,ISRUC,17,subjects,REVE,identity_free,balanced_accuracy,0.641,docs/isruc_sleep_results.md
+sleep,ISRUC,17,subjects,REVE,identity_free,cohens_kappa,0.560,docs/isruc_sleep_results.md
