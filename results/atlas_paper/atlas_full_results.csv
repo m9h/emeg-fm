@@ -123,3 +123,11 @@ sleep,ISRUC,17,subjects,REVE,normal,balanced_accuracy,0.697,docs/isruc_sleep_res
 sleep,ISRUC,17,subjects,REVE,normal,cohens_kappa,0.637,docs/isruc_sleep_results.md
 sleep,ISRUC,17,subjects,REVE,identity_free,balanced_accuracy,0.641,docs/isruc_sleep_results.md
 sleep,ISRUC,17,subjects,REVE,identity_free,cohens_kappa,0.560,docs/isruc_sleep_results.md
+sleep,DCSM,38,subjects,classical,normal,balanced_accuracy,0.782,docs/dcsm_sleep_results.md
+sleep,DCSM,38,subjects,classical,normal,cohens_kappa,0.759,docs/dcsm_sleep_results.md
+sleep,DCSM,38,subjects,classical,identity_free,balanced_accuracy,0.727,docs/dcsm_sleep_results.md
+sleep,DCSM,38,subjects,classical,identity_free,cohens_kappa,0.710,docs/dcsm_sleep_results.md
+sleep,DCSM,38,subjects,REVE,normal,balanced_accuracy,0.777,docs/dcsm_sleep_results.md
+sleep,DCSM,38,subjects,REVE,normal,cohens_kappa,0.713,docs/dcsm_sleep_results.md
+sleep,DCSM,38,subjects,REVE,identity_free,balanced_accuracy,0.402,docs/dcsm_sleep_results.md
+sleep,DCSM,38,subjects,REVE,identity_free,cohens_kappa,0.156,docs/dcsm_sleep_results.md
