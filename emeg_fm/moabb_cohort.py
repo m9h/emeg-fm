@@ -22,6 +22,34 @@ from __future__ import annotations
 import numpy as np
 
 
+# Datasets known to mix subjects recorded at incompatible native sampling
+# rates -- resampling each to the same target sfreq rounds to different
+# per-trial sample counts, so combining them into one cohort array raises a
+# broadcast/shape mismatch downstream (e.g. "operands could not be broadcast
+# together with shapes (602,) (601,)"). MOABB's own PhysionetMI docstring:
+# "Subject 88 was recorded at 128 Hz instead of 160 Hz like all other
+# subjects. Loading subject 88 together with other subjects will cause
+# errors in any paradigm."
+KNOWN_INCOMPATIBLE_SUBJECTS = {
+    "PhysionetMotorImagery": {88},
+}
+
+
+def _exclude_incompatible_subjects(dataset, subjects):
+    """Drop subjects with a documented incompatible native sampling rate for
+    this dataset, so the cohort's per-subject arrays stay a uniform shape."""
+    code = getattr(dataset, "code", type(dataset).__name__)
+    bad = KNOWN_INCOMPATIBLE_SUBJECTS.get(code, set())
+    if not bad:
+        return subjects
+    dropped = sorted(set(subjects) & bad)
+    if dropped:
+        print(f"[moabb_cohort] {code}: excluding known-incompatible subject(s) "
+              f"{dropped} (mismatched native sampling rate breaks resample-to-"
+              f"common-length across the cohort)", flush=True)
+    return [s for s in subjects if s not in bad]
+
+
 def _get_data_per_subject(paradigm, dataset, subjects):
     """Pool MOABB trials across subjects on their common-channel intersection.
 
@@ -111,6 +139,7 @@ def build_moabb_cohort(
         paradigm = LeftRightImagery(fmin=fmin, fmax=fmax, resample=sfreq_out)
     if subjects is None:
         subjects = list(dataset.subject_list)
+    subjects = _exclude_incompatible_subjects(dataset, subjects)
 
     try:
         epochs, y, meta = paradigm.get_data(
