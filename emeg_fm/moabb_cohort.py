@@ -50,13 +50,40 @@ def _exclude_incompatible_subjects(dataset, subjects):
     return [s for s in subjects if s not in bad]
 
 
+def _is_epoch_concat_mismatch(exc) -> bool:
+    """True if this ValueError is one of MNE/MOABB's single-call
+    ``concatenate_epochs`` failure modes that ``_get_data_per_subject``
+    fixes: differing channel counts ("nchan"), or differing per-trial epoch
+    lengths across subjects (surfaces as a numpy broadcast error deep inside
+    ``mne.epochs._concatenate_epochs``'s ``np.allclose(epochs.times, ...)``
+    check -- real per-recording timing jitter, not necessarily a sampling-
+    rate difference)."""
+    msg = str(exc)
+    return "nchan" in msg or "broadcast" in msg
+
+
+def _crop_to_common_length(arrays):
+    """Crop the time axis (last dim) of each array to the shortest one, so
+    per-subject epoch arrays with a 1-sample (or few) length mismatch can
+    still be concatenated. Trial count (axis 0) is untouched."""
+    min_t = min(a.shape[-1] for a in arrays)
+    lengths = sorted({a.shape[-1] for a in arrays})
+    if len(lengths) > 1:
+        print(f"[moabb_cohort] cropping per-subject epoch lengths to common "
+              f"min {min_t} samples (lengths seen: {lengths}) -- per-recording "
+              f"timing jitter, not a real signal difference", flush=True)
+    return [a[..., :min_t] for a in arrays]
+
+
 def _get_data_per_subject(paradigm, dataset, subjects):
     """Pool MOABB trials across subjects on their common-channel intersection.
 
     Fallback for datasets whose per-subject channel counts differ (which breaks
-    MOABB's single-call ``concatenate_epochs``). Channels are restricted to the
-    intersection and reordered to a single stable order so the stacked array is
-    consistent for REVE.
+    MOABB's single-call ``concatenate_epochs``), or whose per-subject epoch
+    lengths differ by a sample or two (real per-recording timing jitter).
+    Channels are restricted to the intersection and reordered to a single
+    stable order, and epoch lengths are cropped to the shortest, so the
+    stacked array is consistent for REVE.
     """
     parts, common = [], None
     for s in subjects:
@@ -73,6 +100,7 @@ def _get_data_per_subject(paradigm, dataset, subjects):
         Xs.append(ep.get_data())
         ys_all.append(np.asarray(ys))
         subj_all.append(np.asarray(m["subject"]))
+    Xs = _crop_to_common_length(Xs)
     X = np.concatenate(Xs, axis=0)
     y = np.concatenate(ys_all, axis=0)
     subj = np.concatenate(subj_all, axis=0)
@@ -150,11 +178,12 @@ def build_moabb_cohort(
         X = epochs.get_data()
         subj = np.asarray(meta["subject"])
     except ValueError as e:
-        if "nchan" not in str(e):
+        if not _is_epoch_concat_mismatch(e):
             raise
-        # Some datasets vary channel count across subjects, so MOABB's
+        # Some datasets vary channel count across subjects, or per-subject
+        # epoch length by a sample or two (timing jitter), so MOABB's
         # single-call concatenate_epochs fails. Fetch per subject and pool on
-        # the common-channel intersection instead.
+        # the common-channel intersection / cropped-to-shortest length instead.
         X, y, subj, ch_names = _get_data_per_subject(paradigm, dataset, subjects)
     C = X.shape[1]
     classes = sorted({str(v) for v in y})           # e.g. ['left_hand','right_hand']
