@@ -131,3 +131,11 @@ sleep,DCSM,38,subjects,REVE,normal,balanced_accuracy,0.777,docs/dcsm_sleep_resul
 sleep,DCSM,38,subjects,REVE,normal,cohens_kappa,0.713,docs/dcsm_sleep_results.md
 sleep,DCSM,38,subjects,REVE,identity_free,balanced_accuracy,0.402,docs/dcsm_sleep_results.md
 sleep,DCSM,38,subjects,REVE,identity_free,cohens_kappa,0.156,docs/dcsm_sleep_results.md
+affect,FACED,18,subjects,classical,normal,balanced_accuracy,0.163,docs/faced_affect_results.md
+affect,FACED,18,subjects,classical,normal,cohens_kappa,0.059,docs/faced_affect_results.md
+affect,FACED,18,subjects,classical,identity_free,balanced_accuracy,0.172,docs/faced_affect_results.md
+affect,FACED,18,subjects,classical,identity_free,cohens_kappa,0.068,docs/faced_affect_results.md
+affect,FACED,18,subjects,REVE,normal,balanced_accuracy,0.293,docs/faced_affect_results.md
+affect,FACED,18,subjects,REVE,normal,cohens_kappa,0.205,docs/faced_affect_results.md
+affect,FACED,18,subjects,REVE,identity_free,balanced_accuracy,0.289,docs/faced_affect_results.md
+affect,FACED,18,subjects,REVE,identity_free,cohens_kappa,0.197,docs/faced_affect_results.md
