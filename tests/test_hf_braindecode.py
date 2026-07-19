@@ -37,3 +37,17 @@ def test_subject_splits_deterministic_and_disjoint():
     assert tr | dv | ev == subs
     assert not (tr & dv) and not (dv & ev) and not (tr & ev)
     assert len(tr) > len(dv) and len(tr) > len(ev)
+
+
+def test_stratified_subject_splits_keeps_both_classes_in_eval():
+    # mirrors MDD's real bug: subject id prefix correlates with label, so a
+    # naive lexicographic sort-and-slice puts the whole "MDDS*" class in eval
+    subject_to_label = {f"HS{i}": 0 for i in range(1, 21)}
+    subject_to_label.update({f"MDDS{i}": 1 for i in range(1, 21)})
+    tr, dv, ev = hb.stratified_subject_splits(subject_to_label)
+    ev_labels = {subject_to_label[s] for s in ev}
+    assert ev_labels == {0, 1}  # both classes present, not degenerate single-class
+    dv_labels = {subject_to_label[s] for s in dv}
+    assert dv_labels == {0, 1}
+    assert tr | dv | ev == set(subject_to_label)
+    assert not (tr & dv) and not (dv & ev) and not (tr & ev)

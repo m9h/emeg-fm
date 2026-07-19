@@ -59,3 +59,19 @@ def subject_splits(subject_ids, seed_frac=(0.7, 0.15, 0.15)):
     n_ev = max(1, int(n * seed_frac[2])) if n >= 3 else 0
     n_tr = n - n_dv - n_ev
     return set(subs[:n_tr]), set(subs[n_tr:n_tr + n_dv]), set(subs[n_tr + n_dv:])
+
+
+def stratified_subject_splits(subject_to_label, seed_frac=(0.7, 0.15, 0.15)):
+    """Like subject_splits, but split WITHIN each label group first, then
+    union -- required whenever subject id correlates with class (e.g. MDD's
+    "HS*"/"MDDS*" naming), where naive lexicographic sort-and-slice can put
+    an entire class into one split (single-class eval -> degenerate kappa).
+    ``subject_to_label``: {subject_id: label} (one label per subject)."""
+    by_label = {}
+    for subj, label in subject_to_label.items():
+        by_label.setdefault(label, []).append(subj)
+    tr, dv, ev = set(), set(), set()
+    for label, subs in by_label.items():
+        t, d, e = subject_splits(subs, seed_frac)
+        tr |= t; dv |= d; ev |= e
+    return tr, dv, ev
