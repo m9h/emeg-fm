@@ -7,24 +7,32 @@ coverage-extension sweep completed all three paradigms, updated again
 2026-07-06 after the NEMAR CogNeuro-extras + M3CV wave, updated again
 2026-07-08 after Dreem DOD-H/DOD-O, updated again 2026-07-12 after Ear-EEG
 (ds005178), updated again 2026-07-13 after CHB-MIT + Siena + ISRUC, updated
-again 2026-07-16 after DCSM, updated again 2026-07-18 after FACED.*
+again 2026-07-16 after DCSM, updated again 2026-07-18 after FACED +
+Arithmetic + BCI2020-3 + MDD.*
 
 ## The tally (current)
 
 | Source | Distinct datasets (real results) | Evidence |
 |---|---|---|
 | **MOABB identity-free leaderboard** (union: MI pooled+per-trial, TCM MI/ERP/SSVEP, REVE ERP/SSVEP pooled+per-trial) | **111** | `results/moabb_fmscope/{leaderboard_leftright*,tcm_pertrial*,leaderboard_erp*,leaderboard_ssvep*}.csv` |
-| **NeuroTechX Atlas** (non-MOABB): TDBRAIN, LEMON, HBN, Alljoined, TUSZ, SeizeIT2, Helsinki, Sleep-EDF, HMC, N170 (ds002718), ERN (ds004883), P3-aud (ds003061), P3-vis (ds006018), M3CV, DOD-H, DOD-O, Ear-EEG, CHB-MIT, Siena, ISRUC, DCSM, FACED | **22** | this session + `~/dev/meeg-brain-age-benchmark-paper` |
-| **Total distinct datasets processed** | **133** | |
+| **NeuroTechX Atlas** (non-MOABB): TDBRAIN, LEMON, HBN, Alljoined, TUSZ, SeizeIT2, Helsinki, Sleep-EDF, HMC, N170 (ds002718), ERN (ds004883), P3-aud (ds003061), P3-vis (ds006018), M3CV, DOD-H, DOD-O, Ear-EEG, CHB-MIT, Siena, ISRUC, DCSM, FACED, Arithmetic, BCI2020-3, MDD | **25** | this session + `~/dev/meeg-brain-age-benchmark-paper` |
+| **Total distinct datasets processed** | **136** | |
 | **NeuroAtlas** | 42 | arXiv:2605.14698 |
 
-**We exceed NeuroAtlas's dataset count by 91 (133 vs 42, ~3.2×).**
+**We exceed NeuroAtlas's dataset count by 94 (136 vs 42, ~3.2×).**
 
-**OpenEEGBench overlap update**: FACED brings us to **5/12** OpenEEGBench
-datasets with real completed results (CHB-MIT, ISRUC, BNCI2014-001,
-PhysionetMotorImagery, FACED) — and FACED is also our **first dataset in a
-genuinely new task domain** (affect/emotion recognition), not just an
-overlap checkbox. See `docs/faced_affect_results.md`.
+**OpenEEGBench overlap update**: Arithmetic, BCI2020-3, and MDD bring us to
+**8/12** OpenEEGBench datasets with real completed results (CHB-MIT, ISRUC,
+BNCI2014-001, PhysionetMotorImagery, FACED, Arithmetic, BCI2020-3, MDD) —
+and each opens a genuinely new task domain (mental workload, imagined
+speech, clinical depression), not just an overlap checkbox. **MDD produced
+the single largest identity-free Δ recorded anywhere in the program**
+(REVE Δκ +0.591, complete collapse to chance) — see
+`docs/mdd_depression_results.md` for the trait-vs-state hypothesis this
+suggests. Remaining OpenEEGBench gap: SEED-V, SEED-VIG, TUAB, TUEV — all
+confirmed gated even via braindecode's own HF mirrors (HTTP 401), unlike
+these 3 (HTTP 200) — the BCMI application and open-ISIP-mirror TUAB/TUEV
+pull remain the paths forward.
 
 **Caveat — this is a dataset-COUNT metric, not a data-VOLUME metric.** On total processed
 hours (the metric behind NeuroAtlas's own "~260k hours" headline), we are far behind, not
